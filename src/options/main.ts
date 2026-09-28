@@ -246,7 +246,7 @@ function toolbar(): HTMLElement {
     'header',
     { class: 'toolbar' },
     h('img', { src: chrome.runtime.getURL('icons/icon-48.png'), alt: '', width: 28, height: 28 }),
-    h('h1', null, 'Tabulous'),
+    h('h1', { class: 'wordmark' }, 'Tabulous'),
     h('span', { class: 'spacer' }),
     h('button', { class: 'btn text', onclick: () => importInput.click() }, icon('upload', 18), 'Import'),
     h('button', { class: 'btn text', onclick: exportSites, disabled: !state.sites.length }, icon('download', 18), 'Export'),

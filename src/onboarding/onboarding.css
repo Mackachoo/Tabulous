@@ -12,6 +12,10 @@ main {
   align-items: center;
   gap: 16px;
 }
+.page-header .wordmark {
+  font-size: 18px;
+  line-height: 24px;
+}
 
 .chip {
   display: inline-block;

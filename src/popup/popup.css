@@ -14,6 +14,9 @@ body {
   flex: 1;
   min-width: 0;
 }
+.popup-title h2.wordmark {
+  font-size: 20px;
+}
 .popup-title h2,
 .popup-title .secondary {
   overflow: hidden;

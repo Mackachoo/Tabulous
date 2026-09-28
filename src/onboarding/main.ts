@@ -30,8 +30,8 @@ function render(state: FlagState): void {
     h(
       'header',
       { class: 'page-header' },
-      h('img', { src: chrome.runtime.getURL('icons/icon-128.png'), alt: '', width: 40, height: 40 }),
-      h('div', null, h('h1', null, 'Set up tabbed apps'), h('p', { class: 'secondary' }, 'Three steps, about a minute')),
+      h('img', { src: chrome.runtime.getURL('icons/icon-128.png'), alt: '', width: 64, height: 64 }),
+      h('div', null, h('p', { class: 'wordmark' }, 'Tabulous'), h('h1', null, 'Set up tabbed apps'), h('p', { class: 'secondary' }, 'Three steps, about a minute')),
     ),
     h(
       'p',

@@ -1,28 +1,45 @@
 /* Chrome's own WebUI look (chrome://settings, chrome://extensions): Material 3
-   colour tokens, 12px cards on a pale page, pill buttons, cr-toggle switches. */
+   colour tokens, 12px cards on a pale page, pill buttons, cr-toggle switches.
+   Coloured with the Tabulous brand: the logo's berry pink as the accent, and
+   neutrals tinted towards its hat ink. */
+
+@font-face {
+  font-family: 'Yeseva One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/yeseva-one-latin.woff2') format('woff2');
+}
 
 :root {
   color-scheme: light dark;
 
-  --primary: #0b57d0;
-  --on-primary: #ffffff;
-  --tonal: #d3e3fd;
-  --on-tonal: #0842a0;
-  --page: #f8fafd;
-  --surface: #ffffff;
-  --container: #f0f4f9;
-  --container-high: #e9eef6;
-  --text: #1f1f1f;
-  --text-subtle: #474747;
-  --outline: #747775;
-  --outline-variant: #c4c7c5;
-  --divider: #e3e3e3;
-  --hover: rgb(31 31 31 / 0.06);
-  --pressed: rgb(31 31 31 / 0.1);
-  --focus: #0b57d0;
+  /* The logo: hot pink to berry background, ink hat, gold band. */
+  --brand-pink: #ff4f8b;
+  --brand-berry: #c81e62;
+  --brand-ink: #1d1a2e;
+  --brand-gold: #ffd166;
+  --wordmark: #c81e62;
 
-  --info-bg: #d3e3fd;
-  --info-text: #0842a0;
+  --primary: #c81e62;
+  --on-primary: #ffffff;
+  --tonal: #ffd9e5;
+  --on-tonal: #7d0f3c;
+  --page: #faf8fb;
+  --surface: #ffffff;
+  --container: #f3eff4;
+  --container-high: #ece6ee;
+  --text: #1d1a2e;
+  --text-subtle: #4d4957;
+  --outline: #7a7482;
+  --outline-variant: #cdc7d0;
+  --divider: #e7e2e9;
+  --hover: rgb(29 26 46 / 0.06);
+  --pressed: rgb(29 26 46 / 0.1);
+  --focus: #c81e62;
+
+  --info-bg: #e6e3f5;
+  --info-text: #2f2a5c;
   --warn-bg: #ffdf99;
   --warn-text: #3f2e00;
   --error-bg: #f9dedc;
@@ -39,25 +56,27 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --primary: #a8c7fa;
-    --on-primary: #062e6f;
-    --tonal: #004a77;
-    --on-tonal: #c2e7ff;
-    --page: #1f1f1f;
-    --surface: #282a2c;
-    --container: #333537;
-    --container-high: #3c3e40;
-    --text: #e3e3e3;
-    --text-subtle: #c4c7c5;
-    --outline: #8e918f;
-    --outline-variant: #5e5e5e;
-    --divider: #444746;
-    --hover: rgb(227 227 227 / 0.08);
-    --pressed: rgb(227 227 227 / 0.12);
-    --focus: #a8c7fa;
+    --wordmark: #ff8fb5;
 
-    --info-bg: #004a77;
-    --info-text: #c2e7ff;
+    --primary: #ff8fb5;
+    --on-primary: #5c0028;
+    --tonal: #6e1b40;
+    --on-tonal: #ffd9e5;
+    --page: #1a1820;
+    --surface: #242129;
+    --container: #2f2b35;
+    --container-high: #38343e;
+    --text: #ebe6ee;
+    --text-subtle: #c9c3cd;
+    --outline: #948e99;
+    --outline-variant: #5a5560;
+    --divider: #423d48;
+    --hover: rgb(235 230 238 / 0.08);
+    --pressed: rgb(235 230 238 / 0.12);
+    --focus: #ff8fb5;
+
+    --info-bg: #332f52;
+    --info-text: #e0dcff;
     --warn-bg: #564500;
     --warn-text: #ffdf99;
     --error-bg: #601410;
@@ -107,6 +126,14 @@ h3 {
 
 p {
   margin: 0;
+}
+
+/* "Tabulous" set in the logo's typeface. */
+.wordmark {
+  font-family: 'Yeseva One', Georgia, serif;
+  font-weight: 400;
+  color: var(--wordmark);
+  letter-spacing: 0.01em;
 }
 
 a {

@@ -225,8 +225,8 @@ function renderNotWeb(): void {
     h(
       'header',
       { class: 'popup-header' },
-      h('span', { class: 'site-icon' }, icon('apps')),
-      h('div', { class: 'popup-title' }, h('h2', null, 'Tabulous'), h('div', { class: 'secondary' }, 'Open a website to turn it into an app.')),
+      h('img', { class: 'site-icon', src: chrome.runtime.getURL('icons/icon-48.png'), alt: '' }),
+      h('div', { class: 'popup-title' }, h('h2', { class: 'wordmark' }, 'Tabulous'), h('div', { class: 'secondary' }, 'Open a website to turn it into an app.')),
     ),
     h(
       'footer',
