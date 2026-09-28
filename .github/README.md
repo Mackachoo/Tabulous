@@ -5,6 +5,7 @@ A Chrome extension that gives any website a web app manifest you control, so it 
 - **Tabbed apps.** Adds `display_override: ["tabbed"]` and `tab_strip` (pinned home tab, new tab button) to any site.
 - **The right pages stay in the app.** Sets an explicit `scope` so moving around the site doesn't bring up the URL bar. Messenger is the classic case: install it from a conversation (`/t/123`) and Chrome scopes the app to `/t/`, so every other page counts as "outside" the app.
 - **Makes non-PWA sites installable** with a name, icons, colours, shortcuts and link-handling behaviour.
+- **Keeps what the site already had.** Shortcuts, link (protocol) and file handlers, share target, description and screenshots from the site's own manifest are carried over, unless you turn that off.
 
 ## Setup
 
@@ -38,6 +39,7 @@ Extensions can't read flags. Instead, when an installed Tabulous app opens, Tabu
 
 - A content script is registered at `document_start`, only for the sites you've added. It removes the site's `<link rel="manifest">` and adds `data:application/json;base64,…` in its place. A `MutationObserver` puts it back if a single-page app re-adds its own.
 - Every URL in the manifest is absolute and every icon is a PNG data URL, because a data: manifest has no base URL.
+- Features from the site's own manifest are read when you add the site (or with **Refresh from site** in the editor), with their URLs resolved against the site's manifest URL. Pages outside the site's origin are dropped. So are `prefer_related_applications` and `related_applications`, which can stop Chrome offering to install. Your own settings and extra fields take precedence.
 - On macOS, Chrome uses the `maskable` icon, unmasked and full-bleed, as the app's Dock icon, and macOS rounds its corners. Appify builds it from the site's icon: a full-bleed square (like an Apple touch icon) is used as it is. An icon drawn on a rounded square, like Messenger's, has that square enlarged to fill the canvas. A bare logo is centred in the safe zone on white.
 - The manifest `id` is fixed per origin (`<origin>/?tabulous`), so Chrome's periodic manifest update checks keep matching the installed app.
 - **CSP:** some sites' `Content-Security-Policy` (`manifest-src`/`default-src`) blocks data: manifests. Tabulous notices the violation and offers to remove the CSP header **for that site only**, using a `declarativeNetRequest` rule. This weakens the site's protection against script injection, so it's opt-in and can be undone. A CSP set in a `<meta>` tag can't be removed this way.
