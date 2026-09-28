@@ -67,11 +67,15 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          token=$(curl -sS --fail-with-body https://oauth2.googleapis.com/token \
+          # The error body names the problem (e.g. invalid_grant) without
+          # echoing any credentials, so it's safe to print.
+          res=$(curl -sS --fail-with-body https://oauth2.googleapis.com/token \
             --data-urlencode "client_id=$CLIENT_ID" \
             --data-urlencode "client_secret=$CLIENT_SECRET" \
             --data-urlencode "refresh_token=$REFRESH_TOKEN" \
-            --data-urlencode "grant_type=refresh_token" | jq -r .access_token)
+            --data-urlencode "grant_type=refresh_token") \
+            || { echo "::error::Token request failed: $res"; exit 1; }
+          token=$(jq -r .access_token <<<"$res")
           echo "::add-mask::$token"
           echo "CWS_TOKEN=$token" >> "$GITHUB_ENV"
 
@@ -81,16 +85,17 @@ jobs:
           base="publishers/$PUBLISHER_ID/items/$EXTENSION_ID"
           res=$(curl -sS --fail-with-body -X POST \
             -H "Authorization: Bearer $CWS_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --data-binary @tabulous.zip \
-            "$CWS_API/upload/v2/$base:upload")
+            -T tabulous.zip \
+            "$CWS_API/upload/v2/$base:upload") \
+            || { echo "::error::Upload request failed: $res"; exit 1; }
           echo "$res"
           state=$(jq -r .uploadState <<<"$res")
           # Large uploads are processed asynchronously.
           for _ in $(seq 30); do
             [ "$state" = "IN_PROGRESS" ] || [ "$state" = "UPLOAD_IN_PROGRESS" ] || break
             sleep 10
-            res=$(curl -sS --fail-with-body -H "Authorization: Bearer $CWS_TOKEN" "$CWS_API/v2/$base:fetchStatus")
+            res=$(curl -sS --fail-with-body -H "Authorization: Bearer $CWS_TOKEN" "$CWS_API/v2/$base:fetchStatus") \
+              || { echo "::error::Status request failed: $res"; exit 1; }
             state=$(jq -r .lastAsyncUploadState <<<"$res")
             echo "Upload state: $state"
           done
@@ -102,11 +107,13 @@ jobs:
       - name: Publish
         if: steps.version.outputs.release == 'true'
         run: |
-          curl -sS --fail-with-body -X POST \
+          res=$(curl -sS --fail-with-body -X POST \
             -H "Authorization: Bearer $CWS_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{}' \
-            "$CWS_API/v2/publishers/$PUBLISHER_ID/items/$EXTENSION_ID:publish"
+            "$CWS_API/v2/publishers/$PUBLISHER_ID/items/$EXTENSION_ID:publish") \
+            || { echo "::error::Publish request failed: $res"; exit 1; }
+          echo "$res"
 
       - name: Tag release
         if: steps.version.outputs.release == 'true'
