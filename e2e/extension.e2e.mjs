@@ -58,12 +58,12 @@ const servers = [
   serve(8124, { 'content-security-policy': "manifest-src 'self'" }),
   serve(8125),
   serve(8126),
-  // Only an Apple touch icon: artwork on an opaque square, like Messenger's.
+  // Only an Apple touch icon: artwork on a white rounded square with transparent corners, like Messenger's.
   http
     .createServer((req, res) => {
       if (req.url === '/touch.svg') {
         res.writeHead(200, { 'content-type': 'image/svg+xml' });
-        return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect width="180" height="180" fill="#fff"/><circle cx="90" cy="90" r="76" fill="#0866ff"/></svg>');
+        return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect width="180" height="180" rx="40" fill="#fff"/><circle cx="90" cy="90" r="76" fill="#0866ff"/></svg>');
       }
       res.writeHead(200, { 'content-type': 'text/html' });
       res.end('<!doctype html><title>Bubble</title><link rel="apple-touch-icon" href="/touch.svg"><body>bubble');

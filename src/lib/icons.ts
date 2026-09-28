@@ -4,7 +4,7 @@
 // Runs in extension pages (popup/options), which need a DOM for decoding.
 
 import type { IconCandidate } from './detect';
-import { analyseIcon, maskableScale, type IconLayout } from './icon-layout';
+import { analyseIcon, maskablePlacement, type IconLayout } from './icon-layout';
 import type { ManifestIcon } from './web-manifest';
 
 const OUTPUT_SIZES = [192, 512];
@@ -69,16 +69,18 @@ function layoutOf(img: HTMLImageElement): IconLayout {
 
 /**
  * Chrome crops maskable icons to any shape that contains the central safe-zone
- * circle. So the canvas is filled edge to edge with the icon's own background
- * (or `fallback` if it has none) and the artwork is scaled and centred to fit
- * the circle, rather than shrinking the whole image and its background.
+ * circle (on macOS, the Dock's rounded square). So the canvas is filled edge
+ * to edge with the icon's own background (or `fallback` if it has none) and
+ * the image is placed by `maskablePlacement`, rather than shrinking the whole
+ * image, background and all.
  */
 function renderMaskable(img: HTMLImageElement, size: number, layout: IconLayout, fallback: string): string {
   const [el, ctx] = canvas(size);
   ctx.fillStyle = layout.background ?? fallback;
   ctx.fillRect(0, 0, size, size);
-  const frame = size * maskableScale(layout);
-  drawFitted(ctx, img, size / 2 - layout.cx * frame, size / 2 - layout.cy * frame, frame);
+  const { scale, cx, cy } = maskablePlacement(layout);
+  const frame = size * scale;
+  drawFitted(ctx, img, size / 2 - cx * frame, size / 2 - cy * frame, frame);
   return el.toDataURL('image/png');
 }
 
