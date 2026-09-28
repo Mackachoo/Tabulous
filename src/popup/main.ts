@@ -29,6 +29,8 @@ interface State {
   busy?: string;
   error?: string;
   scopeInput: string;
+  /** Showing the settings form for a site that's already set up. */
+  editing?: boolean;
 }
 
 let state: State;
@@ -165,7 +167,7 @@ async function refreshPage(): Promise<void> {
   if (state.tab.id === undefined) return;
   state.page = await inspect(state.tab.id);
   // The setup form doesn't show page status, and re-rendering it would interrupt typing.
-  if (!state.config?.needsSetup) render();
+  if (!state.config?.needsSetup && !state.editing) render();
 }
 
 async function remove(): Promise<void> {
@@ -174,6 +176,7 @@ async function remove(): Promise<void> {
   state.config = undefined;
   state.permitted = false;
   state.cspBlocked = false;
+  state.editing = false;
   render();
 }
 
@@ -185,6 +188,24 @@ async function reloadTab(): Promise<void> {
 function openEditor(): void {
   flushSave();
   chrome.tabs.create({ url: state?.config ? `${EDITOR_URL}#${encodeURIComponent(state.origin)}` : EDITOR_URL });
+}
+
+function openSettings(): void {
+  flushSave();
+  chrome.tabs.create({ url: EDITOR_URL });
+}
+
+async function startEditing(): Promise<void> {
+  state.editing = true;
+  render();
+  if (!state.iconOptions.length && state.page && state.tab.id !== undefined) {
+    state.iconOptions = await prepareIcons(state.tab.id, state.page);
+    if (state.editing && !document.activeElement?.matches('input, textarea')) render();
+  }
+}
+
+function settingsButton(): HTMLElement {
+  return h('button', { class: 'btn text icon-only', onclick: openSettings, title: 'Tabulous settings', 'aria-label': 'Tabulous settings' }, icon('settings', 20));
 }
 
 // ---- views -------------------------------------------------------------------
@@ -213,9 +234,10 @@ function footer(): HTMLElement {
   return h(
     'footer',
     { class: 'popup-footer' },
-    h('button', { class: 'btn text', onclick: openEditor }, icon('edit', 18), state?.config ? 'Edit settings' : 'All sites'),
+    state.config && h('button', { class: 'btn text', onclick: startEditing }, icon('edit', 18), 'Edit settings'),
     h('span', { class: 'spacer' }),
-    state?.config && h('button', { class: 'btn text danger', onclick: remove }, icon('delete', 18), 'Remove'),
+    state.config && h('button', { class: 'btn text danger', onclick: remove }, icon('delete', 18), 'Remove'),
+    settingsButton(),
   );
 }
 
@@ -428,7 +450,7 @@ function renderSetup(config: SiteConfig): void {
     h(
       'div',
       { class: 'popup-body' },
-      h('p', { class: 'secondary' }, 'Check these before you install.'),
+      h('p', { class: 'secondary' }, state.editing ? 'Edit how this site works as an app.' : 'Check these before you install.'),
       !state.permitted && pageStatus(config),
       h(
         'section',
@@ -484,6 +506,7 @@ function renderSetup(config: SiteConfig): void {
           class: 'btn action',
           onclick: () => {
             flushSave();
+            state.editing = false;
             update({ needsSetup: undefined });
           },
         },
@@ -522,7 +545,7 @@ function renderConfigured(config: SiteConfig): void {
 
 function render(): void {
   if (!state.config) renderNew();
-  else if (state.config.needsSetup) renderSetup(state.config);
+  else if (state.config.needsSetup || state.editing) renderSetup(state.config);
   else renderConfigured(state.config);
 }
 

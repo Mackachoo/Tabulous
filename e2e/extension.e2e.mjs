@@ -243,6 +243,19 @@ try {
   const done = await storageGet('site:http://localhost:8125');
   const afterDone = await fresh.view.locator('main').innerText();
   check('Done ends setup and shows the status view', done && !('needsSetup' in done) && afterDone.includes('manifest is active'), afterDone.slice(0, 80).replace(/\n+/g, ' | '));
+  // "Edit settings" reopens the form in the popup; the gear opens the settings page.
+  await fresh.view.getByRole('button', { name: 'Edit settings' }).click();
+  await sleep(300);
+  await fresh.view.getByLabel('Name').fill('Edited Name');
+  await sleep(600);
+  const reedited = await storageGet('site:http://localhost:8125');
+  check('"Edit settings" edits the site in the popup', reedited?.name === 'Edited Name' && !('needsSetup' in reedited), reedited?.name);
+  await fresh.view.getByRole('button', { name: 'Done' }).click();
+  await sleep(300);
+  const settingsTab = ctx.waitForEvent('page');
+  await fresh.view.getByRole('button', { name: 'Tabulous settings' }).click();
+  const settingsUrl = (await settingsTab).url();
+  check('the gear opens the settings page', settingsUrl.endsWith('/src/options/index.html'), settingsUrl);
   // On macOS the site access prompt can close the popup mid-click. The config
   // must already be saved by then, and the open tab must get the manifest
   // without a reload.

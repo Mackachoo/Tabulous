@@ -154,3 +154,10 @@ body {
   border-radius: 22.5%;
   object-fit: cover;
 }
+.btn.icon-only {
+  width: 36px;
+  padding: 0;
+}
+.btn.icon-only .icon {
+  margin: 0;
+}
