@@ -332,7 +332,7 @@ function editor(draft: SiteConfig): HTMLElement {
               'div',
               { class: 'icons' },
               ...draft.icons.map((i) =>
-                h('figure', null, h('img', { src: i.src, alt: '', class: i.purpose === 'maskable' ? 'maskable' : '' }), h('figcaption', null, `${i.sizes ?? '?'} ${i.purpose ?? ''}`)),
+                h('figure', null, h('img', { src: i.src, alt: '', class: i.purpose === 'maskable' ? 'maskable' : '' }), h('figcaption', null, i.purpose === 'maskable' ? `${i.sizes ?? '?'} Dock` : `${i.sizes ?? '?'} ${i.purpose ?? ''}`)),
               ),
             )
           : h('p', { class: 'secondary' }, 'No icons yet. Chrome won’t install the app without one.'),

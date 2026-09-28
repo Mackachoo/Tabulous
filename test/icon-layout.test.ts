@@ -29,6 +29,7 @@ describe('analyseIcon', () => {
     // Blue circle, 84% of the width, on white.
     const layout = analyseIcon(pixels(100, (x, y) => (inCircle(x, y, 50, 50, 42) ? BLUE : WHITE)));
     expect(layout.background).toBe('#ffffff');
+    expect(layout.fullBleed).toBe(true);
     expect(layout.cx).toBeCloseTo(0.5, 2);
     expect(layout.cy).toBeCloseTo(0.5, 2);
     expect(layout.radius).toBeGreaterThan(0.41);
@@ -41,8 +42,8 @@ describe('analyseIcon', () => {
     expect(layout.radius).toBeCloseTo(0.3, 1);
   });
 
-  it('measures off-centre artwork from its own centre', () => {
-    const layout = analyseIcon(pixels(100, (x, y) => (inCircle(x, y, 30, 70, 10) ? BLUE : WHITE)));
+  it('measures artwork with no background from its own centre', () => {
+    const layout = analyseIcon(pixels(100, (x, y) => (inCircle(x, y, 30, 70, 10) ? BLUE : CLEAR)));
     expect(layout.cx).toBeCloseTo(0.3, 1);
     expect(layout.cy).toBeCloseTo(0.7, 1);
     expect(layout.radius).toBeCloseTo(0.1, 1);
@@ -63,6 +64,20 @@ describe('analyseIcon', () => {
     expect(layout.radius).toBeCloseTo(0.3, 1);
   });
 
+  it('finds a macOS-style plate with margins, ignoring its drop shadow', () => {
+    const SHADOW: RGBA = [0, 0, 0, 160];
+    const layout = analyseIcon(
+      pixels(100, (x, y) =>
+        inCircle(x, y, 50, 50, 20) ? BLUE : inRoundedSquare(x, y, 10, 90, 18) ? WHITE : inRoundedSquare(x, y - 3, 10, 90, 18) ? SHADOW : CLEAR,
+      ),
+    );
+    expect(layout.background).toBe('#ffffff');
+    expect(layout.plate?.size).toBeCloseTo(0.8, 2);
+    expect(layout.radius).toBeCloseTo(0.2, 1);
+    // Enlarged so the plate fills the icon; the artwork stays in proportion.
+    expect(maskablePlacement(layout).scale).toBeCloseTo(1.25, 2);
+  });
+
   it('doesn’t take a round logo for a plate', () => {
     const layout = analyseIcon(pixels(100, (x, y) => (inCircle(x, y, 50, 50, 50) ? BLUE : CLEAR)));
     expect(layout.plate).toBeUndefined();
@@ -71,15 +86,20 @@ describe('analyseIcon', () => {
 });
 
 describe('maskablePlacement', () => {
+  it('uses a full-bleed square icon as it is', () => {
+    const placement = maskablePlacement({ background: '#000000', plate: { cx: 0.5, cy: 0.5, size: 1 }, fullBleed: true, cx: 0.5, cy: 0.62, radius: 0.45 });
+    expect(placement).toEqual({ scale: 1, cx: 0.5, cy: 0.5 });
+  });
+
   it('enlarges a plate to fill the icon, keeping the artwork at its designed size', () => {
     const placement = maskablePlacement({ background: '#ffffff', plate: { cx: 0.5, cy: 0.5, size: 0.8 }, cx: 0.5, cy: 0.5, radius: 0.25 });
     expect(placement.scale).toBeCloseTo(1.25);
   });
 
-  it('shrinks artwork on a plate only as far as the safe zone', () => {
-    const placement = maskablePlacement({ background: '#ffffff', plate: { cx: 0.5, cy: 0.5, size: 1 }, cx: 0.5, cy: 0.52, radius: 0.45 });
+  it('shrinks artwork on a plate about the plate’s centre, only as far as the safe zone', () => {
+    const placement = maskablePlacement({ background: '#ffffff', plate: { cx: 0.5, cy: 0.49, size: 0.96 }, cx: 0.5, cy: 0.49, radius: 0.45 });
     expect(placement.scale).toBeCloseTo(SAFE_ZONE_RADIUS / 0.45);
-    expect(placement.cy).toBe(0.52);
+    expect(placement.cy).toBe(0.49);
   });
 
   it('fills the safe zone with artwork that has no background, within limits', () => {

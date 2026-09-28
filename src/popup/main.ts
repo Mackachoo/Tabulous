@@ -1,5 +1,5 @@
 import { fetchIconsInPage, inspectPage, type PageInfo } from '../lib/detect';
-import { blobToIcons, iconsFromCandidates, largestIcon, rankCandidates } from '../lib/icons';
+import { blobToIcons, dockIcon, iconsFromCandidates, largestIcon, rankCandidates } from '../lib/icons';
 import { hasSitePermission, removeSitePermission, requestSitePermission } from '../lib/permissions';
 import {
   clearCspBlocked,
@@ -387,12 +387,12 @@ function showSetupProblems(config: SiteConfig): void {
 
 /** Icon, name and the other icons found on the page. */
 function identity(config: SiteConfig): HTMLElement {
-  const current = largestIcon(config.icons);
+  const current = dockIcon(config.icons);
   const options = state.iconOptions.length > 1 ? state.iconOptions : [];
   return h(
     'div',
     { class: 'identity' },
-    current ? h('img', { class: 'site-icon large', src: current.src, alt: 'App icon' }) : h('span', { class: 'site-icon large' }, icon('apps', 28)),
+    current ? h('img', { class: 'site-icon large dock', src: current.src, alt: 'App icon as it will look in the Dock' }) : h('span', { class: 'site-icon large' }, icon('apps', 28)),
     h(
       'div',
       { class: 'identity-fields' },

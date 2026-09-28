@@ -201,7 +201,9 @@ body {
   border-radius: 12px;
 }
 .icons img.maskable {
-  border-radius: 50%;
+  /* Chrome on macOS uses this one full-bleed and the Dock rounds it like this. */
+  border-radius: 22.5%;
+  object-fit: cover;
 }
 
 .scope-result {

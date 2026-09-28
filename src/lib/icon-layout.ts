@@ -17,10 +17,15 @@ export interface IconLayout {
    * Messenger's. Centre and size as fractions of the width.
    */
   plate?: { cx: number; cy: number; size: number };
-  /** Centre of the artwork, as a fraction of the width and height. */
+  /** The background reaches all four corners: a full-bleed square like an Apple touch icon. */
+  fullBleed?: boolean;
+  /**
+   * Centre the artwork is measured from, as a fraction of the width and
+   * height: the plate's centre if there is one, else the artwork's own.
+   */
   cx: number;
   cy: number;
-  /** Distance from the centre to the furthest artwork pixel, as a fraction of the width. */
+  /** Distance from that centre to the furthest artwork pixel, as a fraction of the width. */
   radius: number;
 }
 
@@ -50,7 +55,8 @@ export function analyseIcon({ data, width, height }: Pixels): IconLayout {
   const corners = [at(inset, inset), at(width - 1 - inset, inset), at(inset, height - 1 - inset), at(width - 1 - inset, height - 1 - inset)];
   let bg: number[] | undefined;
   let plate: IconLayout['plate'];
-  if (sameColour(corners)) {
+  const fullBleed = sameColour(corners);
+  if (fullBleed) {
     bg = average(corners);
     plate = { cx: 0.5, cy: 0.5, size: 1 };
   } else {
@@ -66,7 +72,12 @@ export function analyseIcon({ data, width, height }: Pixels): IconLayout {
     }
   }
 
-  const isArt = (i: number) => (bg ? data[i + 3] >= 128 && diff(i, bg) >= SAME_COLOUR : data[i + 3] > 24);
+  // With a plate, only what's drawn on it counts, which is opaque like the
+  // plate; not a translucent drop shadow showing past its rounded corners.
+  const onPlate = (x: number, y: number) =>
+    !plate || (Math.abs(x + 0.5 - plate.cx * width) <= (plate.size * width) / 2 && Math.abs(y + 0.5 - plate.cy * height) <= (plate.size * width) / 2);
+  const isArtPixel = (i: number) =>
+    plate ? data[i + 3] >= OPAQUE && diff(i, bg!) >= SAME_COLOUR : bg ? data[i + 3] >= 128 && diff(i, bg) >= SAME_COLOUR : data[i + 3] > 24;
 
   let minX = width;
   let minY = height;
@@ -74,7 +85,7 @@ export function analyseIcon({ data, width, height }: Pixels): IconLayout {
   let maxY = -1;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (!isArt(at(x, y))) continue;
+      if (!onPlate(x, y) || !isArtPixel(at(x, y))) continue;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -83,28 +94,31 @@ export function analyseIcon({ data, width, height }: Pixels): IconLayout {
   }
   const background = bg && `#${bg.map(hex).join('')}`;
   // A blank icon, or one that is a single flat colour: treat the whole square as artwork.
-  if (maxX < 0) return { background, plate, cx: 0.5, cy: 0.5, radius: Math.SQRT1_2 };
+  const base = { background, plate, ...(fullBleed && { fullBleed }) };
+  if (maxX < 0) return { ...base, cx: 0.5, cy: 0.5, radius: Math.SQRT1_2 };
 
-  const cx = (minX + maxX + 1) / 2;
-  const cy = (minY + maxY + 1) / 2;
+  // Measuring from the plate's centre keeps lopsided artwork, like a speech
+  // bubble's tail, where the designer put it.
+  const cx = plate ? plate.cx * width : (minX + maxX + 1) / 2;
+  const cy = plate ? plate.cy * height : (minY + maxY + 1) / 2;
   let furthest = 0;
   for (let y = minY; y <= maxY; y++) {
     for (let x = minX; x <= maxX; x++) {
-      if (!isArt(at(x, y))) continue;
+      if (!onPlate(x, y) || !isArtPixel(at(x, y))) continue;
       // Pixel corners, so a one-pixel dot still has a size.
       const dx = Math.max(Math.abs(x - cx), Math.abs(x + 1 - cx));
       const dy = Math.max(Math.abs(y - cy), Math.abs(y + 1 - cy));
       furthest = Math.max(furthest, dx * dx + dy * dy);
     }
   }
-  return { background, plate, cx: cx / width, cy: cy / height, radius: Math.sqrt(furthest) / width };
+  return { ...base, cx: cx / width, cy: cy / height, radius: Math.sqrt(furthest) / width };
 }
 
 /**
  * The opaque rounded square an icon is drawn on, if it has one: opaque pixels
- * spanning at least 90% of the image and filling their bounding box the way a
- * rounded square does. A circle fills only 79% of its box, so round logos
- * don't count.
+ * spanning most of the image (a macOS-style icon's plate spans about 80%) and
+ * filling their bounding box the way a rounded square does. A circle fills
+ * only 79% of its box, so round logos don't count.
  */
 function findPlate({ data, width, height }: Pixels): IconLayout['plate'] {
   let minX = width;
@@ -124,7 +138,7 @@ function findPlate({ data, width, height }: Pixels): IconLayout['plate'] {
   }
   const w = maxX - minX + 1;
   const h = maxY - minY + 1;
-  if (w < width * 0.9 || h < height * 0.9 || opaque < w * h * 0.88) return undefined;
+  if (w < width * 0.6 || h < height * 0.6 || opaque < w * h * 0.88) return undefined;
   return { cx: (minX + maxX + 1) / 2 / width, cy: (minY + maxY + 1) / 2 / height, size: Math.max(w, h) / width };
 }
 
@@ -137,15 +151,20 @@ export interface Placement {
 }
 
 /**
- * Where to draw the image in a maskable icon. An icon with its own background
- * has that plate enlarged to fill the canvas, so the artwork keeps the size it
- * was designed at, and is shrunk only if it would poke out of the safe zone.
- * Artwork with no background is scaled to fill the safe zone, capped so a tiny
- * glyph isn't blown up to mush.
+ * Where to draw the image in a maskable icon.
+ *
+ * - A full-bleed square (opaque corners, like an Apple touch icon) is already
+ *   designed to be cropped by iOS and macOS, so it is used as it is.
+ * - A rounded-square plate is enlarged to fill the canvas, keeping the artwork
+ *   at its designed size and position, and shrunk about the plate's centre
+ *   only if the artwork would poke out of the safe zone.
+ * - Artwork with no background is scaled to fill the safe zone, capped so a
+ *   tiny glyph isn't blown up to mush.
  */
 export function maskablePlacement(layout: IconLayout): Placement {
-  const fitSafeZone = { scale: SAFE_ZONE_RADIUS / layout.radius, cx: layout.cx, cy: layout.cy };
-  if (!layout.plate) return { ...fitSafeZone, scale: Math.min(fitSafeZone.scale, 3) };
-  const fillPlate = { scale: 1 / layout.plate.size, cx: layout.plate.cx, cy: layout.plate.cy };
-  return layout.radius * fillPlate.scale <= SAFE_ZONE_RADIUS ? fillPlate : fitSafeZone;
+  const { plate } = layout;
+  if (layout.fullBleed) return { scale: 1, cx: 0.5, cy: 0.5 };
+  const fitSafeZone = SAFE_ZONE_RADIUS / layout.radius;
+  if (!plate) return { scale: Math.min(fitSafeZone, 3), cx: layout.cx, cy: layout.cy };
+  return { scale: Math.min(1 / plate.size, fitSafeZone), cx: plate.cx, cy: plate.cy };
 }

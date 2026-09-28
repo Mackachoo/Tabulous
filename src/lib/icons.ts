@@ -187,3 +187,8 @@ export function largestIcon(icons: ManifestIcon[]): ManifestIcon | undefined {
   const size = (i: ManifestIcon) => parseInt(i.sizes ?? '0', 10) || 0;
   return [...icons].filter((i) => i.purpose !== 'maskable').sort((a, b) => size(b) - size(a))[0];
 }
+
+/** The icon Chrome on macOS puts in the Dock: the maskable one, used full-bleed. */
+export function dockIcon(icons: ManifestIcon[]): ManifestIcon | undefined {
+  return icons.find((i) => i.purpose?.split(/\s+/).includes('maskable')) ?? largestIcon(icons);
+}

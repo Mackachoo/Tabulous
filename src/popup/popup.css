@@ -149,3 +149,8 @@ body {
   object-fit: contain;
   border-radius: 6px;
 }
+/* The Dock rounds the full-bleed maskable icon to a squircle; 22.5% is close. */
+.site-icon.large.dock {
+  border-radius: 22.5%;
+  object-fit: cover;
+}

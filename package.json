@@ -1,6 +1,6 @@
 {
   "name": "tabulous",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Chrome extension that creates and manages web app manifests so any site can be a (tabbed) PWA.",
   "type": "module",
