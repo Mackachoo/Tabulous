@@ -234,7 +234,7 @@ function footer(): HTMLElement {
   return h(
     'footer',
     { class: 'popup-footer' },
-    state.config && h('button', { class: 'btn text', onclick: startEditing }, icon('edit', 18), 'Edit settings'),
+    state.config && h('button', { class: 'btn text', onclick: startEditing }, icon('edit', 18), 'Edit'),
     h('span', { class: 'spacer' }),
     state.config && h('button', { class: 'btn text danger', onclick: remove }, icon('delete', 18), 'Remove'),
     settingsButton(),
@@ -420,22 +420,22 @@ function identity(config: SiteConfig): HTMLElement {
       { class: 'identity-fields' },
       setupField('Name', config.name, (name) => edit({ name })),
       options.length > 0 &&
-        h(
-          'div',
-          { class: 'icon-choices', role: 'group', 'aria-label': 'Icons found on the page' },
-          ...options.map((option, i) =>
-            h(
-              'button',
-              {
-                class: 'icon-choice',
-                'aria-pressed': String(option[0].src === config.icons[0]?.src),
-                'aria-label': `Icon ${i + 1}`,
-                onclick: () => update({ icons: option }),
-              },
-              h('img', { src: option[0].src, alt: '' }),
-            ),
+      h(
+        'div',
+        { class: 'icon-choices', role: 'group', 'aria-label': 'Icons found on the page' },
+        ...options.map((option, i) =>
+          h(
+            'button',
+            {
+              class: 'icon-choice',
+              'aria-pressed': String(option[0].src === config.icons[0]?.src),
+              'aria-label': `Icon ${i + 1}`,
+              onclick: () => update({ icons: option }),
+            },
+            h('img', { src: option[0].src, alt: '' }),
           ),
         ),
+      ),
       // A file picker would close the popup on macOS, so uploads happen in the editor.
       h('button', { class: 'link hint', onclick: openEditor }, 'Upload a different icon…'),
     ),
@@ -473,24 +473,24 @@ function renderSetup(config: SiteConfig): void {
         { class: 'card' },
         toggleRow('Tabbed app window', 'Open pages of the app as tabs in one window', config.tabbed, (tabbed) => update({ tabbed })),
         config.tabbed &&
+        h(
+          'div',
+          { class: 'card-body stack' },
           h(
-            'div',
-            { class: 'card-body stack' },
-            h(
-              'label',
-              { class: 'field' },
-              h('span', null, 'Home tab pages'),
-              h('textarea', {
-                rows: 2,
-                value: config.homeTabPaths.join('\n'),
-                placeholder: '/\n/inbox/*',
-                oninput: (e: Event) =>
-                  edit({ homeTabPaths: (e.target as HTMLTextAreaElement).value.split('\n').map((l) => l.trim()).filter(Boolean) }),
-              }),
-              h('span', { class: 'hint' }, 'URL patterns, one per line, for the pinned home tab. Empty for none.'),
-            ),
-            setupField('New tab page', config.newTabPath ?? '', (newTabPath) => edit({ newTabPath: newTabPath || undefined }), 'What the + button opens.', '/'),
+            'label',
+            { class: 'field' },
+            h('span', null, 'Home tab pages'),
+            h('textarea', {
+              rows: 2,
+              value: config.homeTabPaths.join('\n'),
+              placeholder: '/\n/inbox/*',
+              oninput: (e: Event) =>
+                edit({ homeTabPaths: (e.target as HTMLTextAreaElement).value.split('\n').map((l) => l.trim()).filter(Boolean) }),
+            }),
+            h('span', { class: 'hint' }, 'URL patterns, one per line, for the pinned home tab. Empty for none.'),
           ),
+          setupField('New tab page', config.newTabPath ?? '', (newTabPath) => edit({ newTabPath: newTabPath || undefined }), 'What the + button opens.', '/'),
+        ),
         flagsRow(config),
       ),
       setupProblems,
