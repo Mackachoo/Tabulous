@@ -58,6 +58,17 @@ const servers = [
   serve(8124, { 'content-security-policy': "manifest-src 'self'" }),
   serve(8125),
   serve(8126),
+  // Only an Apple touch icon: artwork on an opaque square, like Messenger's.
+  http
+    .createServer((req, res) => {
+      if (req.url === '/touch.svg') {
+        res.writeHead(200, { 'content-type': 'image/svg+xml' });
+        return res.end('<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><rect width="180" height="180" fill="#fff"/><circle cx="90" cy="90" r="76" fill="#0866ff"/></svg>');
+      }
+      res.writeHead(200, { 'content-type': 'text/html' });
+      res.end('<!doctype html><title>Bubble</title><link rel="apple-touch-icon" href="/touch.svg"><body>bubble');
+    })
+    .listen(8127),
 ];
 
 // Branded Chrome ignores --load-extension, so the extension is loaded over a
@@ -215,6 +226,23 @@ try {
   await sleep(2500);
   const created = await storageGet('site:http://localhost:8125');
   check('"Add in Tabulous" saves a config using the site’s name and icons', created?.name === 'Site Own' && created?.icons?.length === 3, `${created?.name}, ${created?.icons?.length} icons`);
+
+  // The popup turns into a short setup form until Done is clicked.
+  await fresh.view.screenshot({ path: `${SHOTS}/popup-setup.png`, fullPage: true });
+  await fresh.view.emulateMedia({ colorScheme: 'dark' });
+  await fresh.view.screenshot({ path: `${SHOTS}/popup-setup-dark.png`, fullPage: true });
+  await fresh.view.emulateMedia({ colorScheme: 'light' });
+  check('after "Add in Tabulous" the popup shows the setup form', created?.needsSetup === true && (await fresh.view.getByRole('button', { name: 'Done' }).count()) === 1);
+  await fresh.view.getByLabel('Name').fill('Set Up Name');
+  await fresh.view.getByLabel('In-app path').fill('/t/');
+  await sleep(600);
+  const edited = await storageGet('site:http://localhost:8125');
+  check('typing in the setup form saves', edited?.name === 'Set Up Name' && edited?.scopePath === '/t/', `${edited?.name}, ${edited?.scopePath}`);
+  await fresh.view.getByRole('button', { name: 'Done' }).click();
+  await sleep(1000);
+  const done = await storageGet('site:http://localhost:8125');
+  const afterDone = await fresh.view.locator('main').innerText();
+  check('Done ends setup and shows the status view', done && !('needsSetup' in done) && afterDone.includes('manifest is active'), afterDone.slice(0, 80).replace(/\n+/g, ' | '));
   // On macOS the site access prompt can close the popup mid-click. The config
   // must already be saved by then, and the open tab must get the manifest
   // without a reload.
@@ -227,6 +255,34 @@ try {
   const openTab = ctx.pages().find((p) => p.url() === 'http://localhost:8126/t/1');
   const liveLinks = await openTab?.evaluate(() => [...document.querySelectorAll('link[rel~=manifest]')].map((l) => l.getAttribute('href').slice(0, 30)));
   check('the already-open tab gets the manifest without a reload', liveLinks?.length === 1 && liveLinks[0].startsWith('data:application/json'), JSON.stringify(liveLinks));
+  // Maskable icons: the icon's own background fills the canvas edge to edge
+  // and the artwork fits the safe-zone circle (radius 40% of the size).
+  const bubble = await popup('http://localhost:8127/', 'popup-bubble.png');
+  await bubble.view.getByRole('button', { name: 'Add in Tabulous' }).click();
+  await sleep(1500);
+  const bubbleIcons = (await storageGet('site:http://localhost:8127'))?.icons ?? [];
+  const maskable = bubbleIcons.find((i) => i.purpose === 'maskable');
+  const probe = maskable
+    ? await bubble.view.evaluate(async (src) => {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const c = new OffscreenCanvas(512, 512);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const px = (x, y) => Array.from(ctx.getImageData(x, y, 1, 1).data).join(',');
+        // Blue reaches out to (but not past) the safe zone along the middle row.
+        let edge = 256;
+        while (edge < 511 && px(edge + 1, 256).startsWith('8,102,255')) edge++;
+        return { corner: px(2, 2), centre: px(256, 256), radius: (edge + 1 - 256) / 512 };
+      }, maskable.src)
+    : undefined;
+  fs.writeFileSync(path.join(SHOTS, 'maskable.png'), Buffer.from((maskable?.src ?? ',').split(',')[1], 'base64'));
+  check(
+    'the maskable icon keeps the icon’s background edge to edge, with the artwork inside the safe zone',
+    probe?.corner === '255,255,255,255' && probe.centre.startsWith('8,102,255') && probe.radius > 0.37 && probe.radius <= 0.401,
+    JSON.stringify(probe),
+  );
 } finally {
   await ctx?.close().catch(() => {});
   servers.forEach((s) => s.close());

@@ -76,6 +76,8 @@ export interface SiteConfig {
   cspBypass: boolean;
   /** Raw manifest members merged over the generated manifest. */
   overrides: Record<string, unknown>;
+  /** Just added from the popup: it shows the setup form until the user clicks Done. */
+  needsSetup?: boolean;
   updatedAt: number;
 }
 

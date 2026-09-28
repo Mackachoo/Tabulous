@@ -10,7 +10,7 @@ export const messengerPreset: Partial<SiteConfig> = {
   shortName: 'Messenger',
   startPath: '/',
   scopePath: '/',
-  tabbed: true,
+  tabbed: false,
   homeTabPaths: [],
   newTabPath: '/',
   themeColor: '#0866ff',

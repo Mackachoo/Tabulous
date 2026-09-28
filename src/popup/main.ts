@@ -20,8 +20,8 @@ interface State {
   tab: chrome.tabs.Tab;
   origin: string;
   config?: SiteConfig;
-  /** Icons found on the page, ready before "Add in Tabulous" is clicked. */
-  preparedIcons?: ManifestIcon[];
+  /** Icon sets made from the page's icons, best first, ready before "Add in Tabulous" is clicked. */
+  iconOptions: ManifestIcon[][];
   permitted: boolean;
   page?: PageInfo;
   flags: FlagState;
@@ -48,10 +48,11 @@ async function inspect(tabId: number): Promise<PageInfo | undefined> {
 
 /**
  * Downloads the page's best icons from inside the page (activeTab is enough, no
- * host permission yet), then renders them to PNGs here.
+ * host permission yet), then renders each one that decodes to a set of PNGs.
  */
-async function prepareIcons(tabId: number, page: PageInfo): Promise<ManifestIcon[]> {
+async function prepareIcons(tabId: number, page: PageInfo): Promise<ManifestIcon[][]> {
   const ranked = rankCandidates(page.icons).slice(0, 4);
+  const options: ManifestIcon[][] = [];
   try {
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
@@ -60,16 +61,17 @@ async function prepareIcons(tabId: number, page: PageInfo): Promise<ManifestIcon
     });
     for (const { dataUrl } of result?.result ?? []) {
       try {
-        const blob = await (await fetch(dataUrl)).blob();
-        return await blobToIcons(blob);
+        const icons = await blobToIcons(await (await fetch(dataUrl)).blob());
+        // Sites often list the same image more than once.
+        if (!options.some((o) => o[0].src === icons[0].src)) options.push(icons);
       } catch {
-        // Not a decodable image; try the next one.
+        // Not a decodable image.
       }
     }
   } catch {
     // Page can't be scripted.
   }
-  return [];
+  return options;
 }
 
 /** "(3) Messenger" → "Messenger", "Inbox | Site" → "Inbox". */
@@ -80,7 +82,7 @@ function cleanTitle(title: string | undefined): string | undefined {
 
 function newConfig(): SiteConfig {
   const page = state.page;
-  const detected: Partial<SiteConfig> = { icons: state.preparedIcons ?? [] };
+  const detected: Partial<SiteConfig> = { icons: state.iconOptions[0] ?? [], needsSetup: true };
   const name = cleanTitle(page?.title);
   if (name) detected.name = name;
   if (page?.themeColor) detected.themeColor = page.themeColor;
@@ -89,10 +91,33 @@ function newConfig(): SiteConfig {
 
 async function update(changes: Partial<SiteConfig>): Promise<void> {
   if (!state.config) return;
+  clearTimeout(pendingSave);
   state.config = { ...state.config, ...changes };
   await saveSite(state.config);
   render();
 }
+
+// Typing in the setup form saves shortly after each change, without
+// re-rendering (which would move focus out of the field).
+let pendingSave: ReturnType<typeof setTimeout> | undefined;
+const setupProblems = h('div', { class: 'stack' });
+
+function edit(changes: Partial<SiteConfig>): void {
+  if (!state.config) return;
+  state.config = { ...state.config, ...changes };
+  clearTimeout(pendingSave);
+  const config = state.config;
+  pendingSave = setTimeout(() => saveSite(config), 250);
+  showSetupProblems(config);
+}
+
+function flushSave(): void {
+  if (pendingSave === undefined || !state.config) return;
+  clearTimeout(pendingSave);
+  pendingSave = undefined;
+  saveSite(state.config);
+}
+addEventListener('pagehide', flushSave);
 
 /**
  * On macOS Chrome's site access prompt can close the popup, ending any script
@@ -139,7 +164,8 @@ async function finishAddSite(config: SiteConfig, saved: Promise<void>, granted: 
 async function refreshPage(): Promise<void> {
   if (state.tab.id === undefined) return;
   state.page = await inspect(state.tab.id);
-  render();
+  // The setup form doesn't show page status, and re-rendering it would interrupt typing.
+  if (!state.config?.needsSetup) render();
 }
 
 async function remove(): Promise<void> {
@@ -157,12 +183,13 @@ async function reloadTab(): Promise<void> {
 }
 
 function openEditor(): void {
+  flushSave();
   chrome.tabs.create({ url: state?.config ? `${EDITOR_URL}#${encodeURIComponent(state.origin)}` : EDITOR_URL });
 }
 
 // ---- views -------------------------------------------------------------------
 
-function header(): HTMLElement {
+function header(withToggle = true): HTMLElement {
   const config = state.config;
   const siteIcon = config ? largestIcon(config.icons) : undefined;
   const favicon = state.tab.favIconUrl;
@@ -178,7 +205,7 @@ function header(): HTMLElement {
       h('h2', null, config?.name ?? new URL(state.origin).hostname),
       h('div', { class: 'secondary' }, new URL(state.origin).host),
     ),
-    config && toggle(config.enabled, (enabled) => update({ enabled }), 'Tabulous on this site'),
+    withToggle && config && toggle(config.enabled, (enabled) => update({ enabled }), 'Tabulous on this site'),
   );
 }
 
@@ -341,6 +368,131 @@ function scopeTester(config: SiteConfig): HTMLElement {
   );
 }
 
+// ---- setup form, shown after "Add in Tabulous" ---------------------------------
+
+function setupField(label: string, value: string, onInput: (value: string) => void, hint?: string, placeholder?: string): HTMLElement {
+  return h(
+    'label',
+    { class: 'field' },
+    h('span', null, label),
+    h('input', { type: 'text', value, placeholder, oninput: (e: Event) => onInput((e.target as HTMLInputElement).value) }),
+    hint && h('span', { class: 'hint' }, hint),
+  );
+}
+
+function showSetupProblems(config: SiteConfig): void {
+  const problems = validate(config);
+  mount(setupProblems, ...problems.map((p) => notice(p.severity === 'error' ? 'error' : 'warn', p.message)));
+}
+
+/** Icon, name and the other icons found on the page. */
+function identity(config: SiteConfig): HTMLElement {
+  const current = largestIcon(config.icons);
+  const options = state.iconOptions.length > 1 ? state.iconOptions : [];
+  return h(
+    'div',
+    { class: 'identity' },
+    current ? h('img', { class: 'site-icon large', src: current.src, alt: 'App icon' }) : h('span', { class: 'site-icon large' }, icon('apps', 28)),
+    h(
+      'div',
+      { class: 'identity-fields' },
+      setupField('Name', config.name, (name) => edit({ name })),
+      options.length > 0 &&
+        h(
+          'div',
+          { class: 'icon-choices', role: 'group', 'aria-label': 'Icons found on the page' },
+          ...options.map((option, i) =>
+            h(
+              'button',
+              {
+                class: 'icon-choice',
+                'aria-pressed': String(option[0].src === config.icons[0]?.src),
+                'aria-label': `Icon ${i + 1}`,
+                onclick: () => update({ icons: option }),
+              },
+              h('img', { src: option[0].src, alt: '' }),
+            ),
+          ),
+        ),
+      // A file picker would close the popup on macOS, so uploads happen in the editor.
+      h('button', { class: 'link hint', onclick: openEditor }, 'Upload a different icon…'),
+    ),
+  );
+}
+
+function renderSetup(config: SiteConfig): void {
+  showSetupProblems(config);
+  mount(
+    root,
+    header(false),
+    h(
+      'div',
+      { class: 'popup-body' },
+      h('p', { class: 'secondary' }, 'Check these before you install.'),
+      !state.permitted && pageStatus(config),
+      h(
+        'section',
+        { class: 'card' },
+        h('div', { class: 'card-body' }, identity(config)),
+        h(
+          'div',
+          { class: 'card-body stack' },
+          h(
+            'div',
+            { class: 'field-pair' },
+            setupField('Start page', config.startPath, (startPath) => edit({ startPath }), undefined, '/'),
+            setupField('In-app path', config.scopePath, (scopePath) => edit({ scopePath }), undefined, '/'),
+          ),
+          h('span', { class: 'hint' }, 'The app opens on the start page. Pages under the in-app path open without the URL bar.'),
+        ),
+      ),
+      h(
+        'section',
+        { class: 'card' },
+        toggleRow('Tabbed app window', 'Open pages of the app as tabs in one window', config.tabbed, (tabbed) => update({ tabbed })),
+        config.tabbed &&
+          h(
+            'div',
+            { class: 'card-body stack' },
+            h(
+              'label',
+              { class: 'field' },
+              h('span', null, 'Home tab pages'),
+              h('textarea', {
+                rows: 2,
+                value: config.homeTabPaths.join('\n'),
+                placeholder: '/\n/inbox/*',
+                oninput: (e: Event) =>
+                  edit({ homeTabPaths: (e.target as HTMLTextAreaElement).value.split('\n').map((l) => l.trim()).filter(Boolean) }),
+              }),
+              h('span', { class: 'hint' }, 'URL patterns, one per line, for the pinned home tab. Empty for none.'),
+            ),
+            setupField('New tab page', config.newTabPath ?? '', (newTabPath) => edit({ newTabPath: newTabPath || undefined }), 'What the + button opens.', '/'),
+          ),
+        flagsRow(config),
+      ),
+      setupProblems,
+    ),
+    h(
+      'footer',
+      { class: 'popup-footer sticky' },
+      h('button', { class: 'btn text', onclick: openEditor }, icon('edit', 18), 'More settings'),
+      h('span', { class: 'spacer' }),
+      h(
+        'button',
+        {
+          class: 'btn action',
+          onclick: () => {
+            flushSave();
+            update({ needsSetup: undefined });
+          },
+        },
+        'Done',
+      ),
+    ),
+  );
+}
+
 function renderConfigured(config: SiteConfig): void {
   const problems = validate(config);
   mount(
@@ -369,8 +521,9 @@ function renderConfigured(config: SiteConfig): void {
 }
 
 function render(): void {
-  if (state.config) renderConfigured(state.config);
-  else renderNew();
+  if (!state.config) renderNew();
+  else if (state.config.needsSetup) renderSetup(state.config);
+  else renderConfigured(state.config);
 }
 
 async function init(): Promise<void> {
@@ -394,12 +547,14 @@ async function init(): Promise<void> {
     flags,
     cspBlocked: Boolean(cspBlocked[origin]) || Boolean(config && page?.cspBlocksManifest),
     scopeInput: tab.url,
+    iconOptions: [],
   };
   render();
 
-  if (!config && page && tab.id !== undefined) {
-    state.preparedIcons = await prepareIcons(tab.id, page);
-    if (!state.config) render();
+  if ((!config || config.needsSetup) && page && tab.id !== undefined) {
+    state.iconOptions = await prepareIcons(tab.id, page);
+    // Re-render for the icon choices, unless it would interrupt typing.
+    if (!state.config || !document.activeElement?.matches('input, textarea')) render();
   }
 }
 

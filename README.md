@@ -29,7 +29,7 @@ Extensions can't read flags. Instead, when an installed Tabulous app opens, Tabu
 
 ## Using it
 
-1. Open the site and click the Tabulous toolbar icon, then **Add in Tabulous**. Chrome asks for access to that one site. The manifest is applied to the open page straight away, with no reload needed.
+1. Open the site and click the Tabulous toolbar icon, then **Add in Tabulous**. Chrome asks for access to that one site. The manifest is applied to the open page straight away, with no reload needed. The popup then shows the key settings (name and icon, start page and in-app path, tabs) for a quick check. Click **Done** when they look right.
 2. Install it: Chrome menu ⋮ › Cast, save and share › Install page as app. If you had already installed the site as an app, uninstall that one first: the Tabulous app has its own id.
 
 **Edit all settings** opens the editor. There you can set the in-app path, home tab patterns, the new tab page, icons, shortcuts, launch behaviour and raw extra manifest fields. It shows a live preview of the generated manifest and has a URL tester that shows whether a page will stay in the app.

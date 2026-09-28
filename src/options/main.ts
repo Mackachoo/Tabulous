@@ -97,7 +97,9 @@ async function addSite(input: string): Promise<void> {
 
 async function save(): Promise<void> {
   if (!state.draft || state.overridesError) return;
-  await saveSite(state.draft);
+  // Saving here counts as setting the site up, so the popup skips its setup form.
+  const { needsSetup: _, ...config } = state.draft;
+  await saveSite(config);
   state.dirty = false;
   await loadSites();
   state.message = { tone: 'ok', text: 'Saved. Open pages of this site update straight away.' };
