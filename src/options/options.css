@@ -1,0 +1,267 @@
+/* Laid out like chrome://settings: a toolbar, a menu of sites on the left and
+   a centred column of section cards. */
+
+body {
+  min-height: 100vh;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px 0 24px;
+  background: var(--page);
+}
+.toolbar h1 {
+  font-size: 22px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  align-items: start;
+}
+
+/* ---- sidebar menu ----------------------------------------------------------- */
+
+.sidebar {
+  position: sticky;
+  top: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 12px 24px 0;
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+
+.nav-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 16px 6px 24px;
+  border: none;
+  border-radius: 0 20px 20px 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: var(--hover);
+}
+.nav-item[aria-current='page'] {
+  background: var(--tonal);
+  color: var(--on-tonal);
+}
+.nav-item[aria-current='page'] .hint {
+  color: inherit;
+}
+.nav-item.disabled .nav-item-text > :first-child {
+  opacity: 0.6;
+}
+.nav-item > .icon {
+  color: var(--text-subtle);
+}
+.nav-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.nav-item-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-item .site-icon {
+  border-radius: 4px;
+}
+
+.add-site {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 0 24px;
+}
+.add-site .btn {
+  align-self: flex-start;
+}
+
+.sidebar hr {
+  border: none;
+  border-top: 1px solid var(--divider);
+  margin: 4px 0 4px 24px;
+}
+
+/* ---- content ---------------------------------------------------------------- */
+
+.content {
+  padding: 0 24px 64px;
+  min-width: 0;
+}
+
+.editor {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.editor-header {
+  position: sticky;
+  top: 56px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 16px;
+  background: var(--page);
+}
+.editor-title {
+  flex: 1;
+  min-width: 0;
+}
+.editor-title h1,
+.editor-title .secondary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 680px) minmax(300px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.editor-main,
+.editor-side {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.editor-side {
+  position: sticky;
+  top: 120px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings-section > h2 {
+  padding-left: 4px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 16px;
+}
+
+.color-field {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.icons {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.icons figure {
+  margin: 0;
+  text-align: center;
+}
+.icons figcaption {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-top: 6px;
+}
+.icons img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  background: var(--container);
+  border-radius: 12px;
+}
+.icons img.maskable {
+  border-radius: 50%;
+}
+
+.scope-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-subtle);
+}
+.scope-result.in {
+  color: #146c2e;
+}
+.scope-result.out {
+  color: var(--error);
+}
+@media (prefers-color-scheme: dark) {
+  .scope-result.in {
+    color: #6dd58c;
+  }
+}
+
+pre.json {
+  max-height: 60vh;
+}
+
+.empty {
+  max-width: 680px;
+  margin: 24px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 40px 32px;
+}
+
+@media (max-width: 1100px) {
+  .editor-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .editor-side {
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: static;
+    max-height: none;
+  }
+  .content {
+    padding: 0 16px 48px;
+  }
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

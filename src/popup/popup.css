@@ -1,0 +1,85 @@
+/* Sized and spaced like Chrome's own toolbar bubbles. */
+body {
+  width: 360px;
+  background: var(--page);
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+}
+.popup-title {
+  flex: 1;
+  min-width: 0;
+}
+.popup-title h2,
+.popup-title .secondary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px;
+}
+
+.popup-body .list-row,
+.popup-body .card-body {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.popup-footer {
+  display: flex;
+  align-items: center;
+  padding: 8px 8px 12px;
+  margin-top: 4px;
+}
+
+.btn.wide {
+  width: 100%;
+}
+
+.busy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  color: var(--text-subtle);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  border-right-color: transparent;
+  animation: spin 800ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.scope-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-subtle);
+}
+.scope-result.in {
+  color: #146c2e;
+}
+.scope-result.out {
+  color: var(--error);
+}
+@media (prefers-color-scheme: dark) {
+  .scope-result.in {
+    color: #6dd58c;
+  }
+}

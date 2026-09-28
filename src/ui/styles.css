@@ -1,0 +1,510 @@
+/* Chrome's own WebUI look (chrome://settings, chrome://extensions): Material 3
+   colour tokens, 12px cards on a pale page, pill buttons, cr-toggle switches. */
+
+:root {
+  color-scheme: light dark;
+
+  --primary: #0b57d0;
+  --on-primary: #ffffff;
+  --tonal: #d3e3fd;
+  --on-tonal: #0842a0;
+  --page: #f8fafd;
+  --surface: #ffffff;
+  --container: #f0f4f9;
+  --container-high: #e9eef6;
+  --text: #1f1f1f;
+  --text-subtle: #474747;
+  --outline: #747775;
+  --outline-variant: #c4c7c5;
+  --divider: #e3e3e3;
+  --hover: rgb(31 31 31 / 0.06);
+  --pressed: rgb(31 31 31 / 0.1);
+  --focus: #0b57d0;
+
+  --info-bg: #d3e3fd;
+  --info-text: #0842a0;
+  --warn-bg: #ffdf99;
+  --warn-text: #3f2e00;
+  --error-bg: #f9dedc;
+  --error-text: #8c1d18;
+  --error: #b3261e;
+  --ok-bg: #c4eed0;
+  --ok-text: #0a3818;
+
+  --radius-card: 12px;
+  --radius-field: 8px;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.1), 0 1px 3px 1px rgb(0 0 0 / 0.05);
+  --mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #a8c7fa;
+    --on-primary: #062e6f;
+    --tonal: #004a77;
+    --on-tonal: #c2e7ff;
+    --page: #1f1f1f;
+    --surface: #282a2c;
+    --container: #333537;
+    --container-high: #3c3e40;
+    --text: #e3e3e3;
+    --text-subtle: #c4c7c5;
+    --outline: #8e918f;
+    --outline-variant: #5e5e5e;
+    --divider: #444746;
+    --hover: rgb(227 227 227 / 0.08);
+    --pressed: rgb(227 227 227 / 0.12);
+    --focus: #a8c7fa;
+
+    --info-bg: #004a77;
+    --info-text: #c2e7ff;
+    --warn-bg: #564500;
+    --warn-text: #ffdf99;
+    --error-bg: #601410;
+    --error-text: #f9dedc;
+    --error: #f2b8b5;
+    --ok-bg: #0f5223;
+    --ok-text: #c4eed0;
+
+    --shadow-card: none;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font: 13px/20px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 400;
+}
+h1 {
+  font-size: 22px;
+  line-height: 28px;
+}
+h2 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+/* Section title above a card, like "Appearance" in Chrome settings. */
+h3 {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text-subtle);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--primary);
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--container);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+strong {
+  font-weight: 500;
+}
+
+.icon {
+  flex-shrink: 0;
+  fill: currentColor;
+}
+
+.secondary,
+.hint,
+.muted {
+  color: var(--text-subtle);
+}
+.hint {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- buttons (cr-button) ------------------------------------------------ */
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid var(--outline-variant);
+  background: transparent;
+  color: var(--primary);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  isolation: isolate;
+}
+.btn .icon {
+  margin-inline-start: -4px;
+}
+.btn:hover {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.btn:active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.btn.action {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.btn.action:hover {
+  background: color-mix(in srgb, var(--primary) 92%, var(--on-primary));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+}
+.btn.tonal {
+  background: var(--tonal);
+  border-color: var(--tonal);
+  color: var(--on-tonal);
+}
+.btn.tonal:hover {
+  background: color-mix(in srgb, var(--tonal) 90%, var(--on-tonal));
+}
+.btn.text {
+  border-color: transparent;
+  padding: 0 12px;
+}
+.btn.danger {
+  color: var(--error);
+}
+.btn.danger:hover {
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+}
+.btn:disabled {
+  cursor: default;
+  background: transparent;
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--text) 12%, transparent);
+  color: color-mix(in srgb, var(--text) 38%, transparent);
+}
+.btn.action:disabled,
+.btn.tonal:disabled {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  border-color: transparent;
+}
+
+/* Inline text link that runs an action. */
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+
+/* ---- toggle (cr-toggle) ------------------------------------------------- */
+
+input.toggle {
+  appearance: none;
+  flex-shrink: 0;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  border: 2px solid var(--outline);
+  background: var(--container-high);
+  cursor: pointer;
+  transition: background-color 120ms, border-color 120ms;
+}
+input.toggle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--outline);
+  transform: translateY(-50%);
+  transition: left 120ms, width 120ms, height 120ms, background-color 120ms;
+}
+input.toggle:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+input.toggle:checked::before {
+  left: 15px;
+  width: 14px;
+  height: 14px;
+  background: var(--on-primary);
+}
+input.toggle:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+/* ---- text fields (cr-input) --------------------------------------------- */
+
+input[type='text'],
+input[type='url'],
+input:not([type]),
+select,
+textarea {
+  font: inherit;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--radius-field);
+  background: var(--container);
+  color: var(--text);
+  outline: none;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow 120ms;
+}
+input[type='text']:hover,
+input[type='url']:hover,
+input:not([type]):hover,
+select:hover,
+textarea:hover {
+  background: var(--container-high);
+}
+input[type='text']:focus,
+input[type='url']:focus,
+input:not([type]):focus,
+select:focus,
+textarea:focus {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-subtle);
+  opacity: 0.7;
+}
+select {
+  appearance: none;
+  padding-right: 36px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-subtle) 50%),
+    linear-gradient(135deg, var(--text-subtle) 50%, transparent 50%);
+  background-position: calc(100% - 18px) 16px, calc(100% - 13px) 16px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+textarea {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+  resize: vertical;
+}
+input[type='color'] {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-field);
+  background: var(--container);
+  cursor: pointer;
+}
+input[type='color']::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+input[type='color']::-webkit-color-swatch {
+  border: 1px solid var(--outline-variant);
+  border-radius: 4px;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+label.field > span:first-child {
+  font-weight: 500;
+}
+
+/* ---- cards and list rows (cr-card, cr-link-row) -------------------------- */
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+.card-body {
+  padding: 16px 20px;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 20px;
+}
+.list-row + .list-row,
+.list-row + .card-body,
+.card-body + .list-row,
+.card-body + .card-body {
+  border-top: 1px solid var(--divider);
+}
+.list-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.list-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+.list-row code {
+  font-size: 11px;
+}
+.list-row .secondary {
+  font-size: 12px;
+  line-height: 16px;
+  margin-top: 2px;
+}
+.list-row.clickable {
+  cursor: pointer;
+}
+.list-row.clickable:hover {
+  background: var(--hover);
+}
+.card > .list-row:first-child,
+.card > .card-body:first-child {
+  border-top-left-radius: var(--radius-card);
+  border-top-right-radius: var(--radius-card);
+}
+.card > .list-row:last-child,
+.card > .card-body:last-child {
+  border-bottom-left-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+}
+
+/* ---- notices ---------------------------------------------------------------- */
+
+.notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-radius: var(--radius-card);
+  padding: 12px 16px;
+}
+.notice > .icon {
+  margin-top: 0;
+}
+.notice-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.notice-info {
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+.notice-warn {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+.notice-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+.notice-ok {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+.notice .btn {
+  height: 32px;
+  border-color: currentColor;
+  color: inherit;
+}
+.notice .btn:hover {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.notice .link {
+  color: inherit;
+}
+
+/* ---- misc ------------------------------------------------------------------- */
+
+.site-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--container);
+  display: grid;
+  place-items: center;
+  color: var(--text-subtle);
+}
+
+pre.json {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre;
+}
+
+ol.steps {
+  margin: 0;
+  padding-left: 20px;
+}
+ol.steps li + li {
+  margin-top: 6px;
+}

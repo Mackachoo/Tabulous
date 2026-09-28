@@ -1,0 +1,24 @@
+{
+  "name": "appify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension that creates and manages web app manifests so any site can be a (tabbed) PWA.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "e2e": "npm run build && node e2e/extension.e2e.mjs",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^3.0.0",
+    "@types/chrome": "^0.3.0",
+    "@types/node": "^26.6.3",
+    "playwright-core": "1.63",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}
