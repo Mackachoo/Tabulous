@@ -4,8 +4,8 @@
 import type { SiteConfig } from './web-manifest';
 
 const SITE_PREFIX = 'site:';
-const FLAGS_KEY = 'appify:flags';
-const CSP_BLOCKED_KEY = 'appify:cspBlocked';
+const FLAGS_KEY = 'tabulous:flags';
+const CSP_BLOCKED_KEY = 'tabulous:cspBlocked';
 
 export const siteKey = (origin: string) => `${SITE_PREFIX}${origin}`;
 
@@ -59,7 +59,7 @@ export async function setFlagState(state: FlagState): Promise<void> {
 
 export const FLAGS_STORAGE_KEY = FLAGS_KEY;
 
-/** Origins where the site's CSP was seen blocking Appify's manifest. */
+/** Origins where the site's CSP was seen blocking Tabulous's manifest. */
 export async function getCspBlocked(): Promise<Record<string, number>> {
   const result = await chrome.storage.local.get(CSP_BLOCKED_KEY);
   return (result[CSP_BLOCKED_KEY] as Record<string, number> | undefined) ?? {};

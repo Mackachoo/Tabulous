@@ -92,7 +92,7 @@ async function addSite(input: string): Promise<void> {
   }
   select(origin);
   if (granted) await fetchIcons();
-  else say('warn', 'Appify was not given access to this site, so the manifest won’t be added until you grant it.');
+  else say('warn', 'Tabulous was not given access to this site, so the manifest won’t be added until you grant it.');
 }
 
 async function save(): Promise<void> {
@@ -105,7 +105,7 @@ async function save(): Promise<void> {
 }
 
 async function remove(): Promise<void> {
-  if (!state.draft || !confirm(`Remove ${state.draft.name} from Appify? Installed apps will fall back to the site’s own manifest.`)) return;
+  if (!state.draft || !confirm(`Remove ${state.draft.name} from Tabulous? Installed apps will fall back to the site’s own manifest.`)) return;
   const { origin } = state.draft;
   await deleteSite(origin);
   await removeSitePermission(origin);
@@ -145,8 +145,8 @@ async function uploadIcon(file: File): Promise<void> {
 }
 
 function exportSites(): void {
-  const blob = new Blob([JSON.stringify({ appify: 1, sites: state.sites }, null, 2)], { type: 'application/json' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: 'appify-sites.json' });
+  const blob = new Blob([JSON.stringify({ tabulous: 1, sites: state.sites }, null, 2)], { type: 'application/json' });
+  const a = h('a', { href: URL.createObjectURL(blob), download: 'tabulous-sites.json' });
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -244,7 +244,7 @@ function toolbar(): HTMLElement {
     'header',
     { class: 'toolbar' },
     h('img', { src: chrome.runtime.getURL('icons/icon-48.png'), alt: '', width: 28, height: 28 }),
-    h('h1', null, 'Appify'),
+    h('h1', null, 'Tabulous'),
     h('span', { class: 'spacer' }),
     h('button', { class: 'btn text', onclick: () => importInput.click() }, icon('upload', 18), 'Import'),
     h('button', { class: 'btn text', onclick: exportSites, disabled: !state.sites.length }, icon('download', 18), 'Export'),
@@ -303,11 +303,11 @@ function editor(draft: SiteConfig): HTMLElement {
     { class: 'editor-main' },
     state.message && notice(state.message.tone, state.message.text),
     !state.permitted[draft.origin] &&
-      notice('error', 'Appify doesn’t have access to this site, so the manifest isn’t being added.', h('button', { class: 'btn', onclick: () => grant(draft.origin) }, 'Allow access')),
+      notice('error', 'Tabulous doesn’t have access to this site, so the manifest isn’t being added.', h('button', { class: 'btn', onclick: () => grant(draft.origin) }, 'Allow access')),
 
     section(
       'App',
-      toggleRow('Use Appify on this site', 'Replace the site’s web app manifest with this one', draft.enabled, (enabled) => change({ enabled })),
+      toggleRow('Use Tabulous on this site', 'Replace the site’s web app manifest with this one', draft.enabled, (enabled) => change({ enabled })),
       h(
         'div',
         { class: 'card-body form-grid' },
@@ -413,7 +413,7 @@ function editor(draft: SiteConfig): HTMLElement {
       'Advanced',
       toggleRow(
         'Remove the site’s Content-Security-Policy',
-        'Only needed when the site’s policy blocks Appify’s manifest (the popup tells you). Makes the site less protected if it has a script injection bug.',
+        'Only needed when the site’s policy blocks the Tabulous manifest (the popup tells you). Makes the site less protected if it has a script injection bug.',
         draft.cspBypass,
         (cspBypass) => change({ cspBypass }),
       ),
@@ -535,7 +535,7 @@ function render(): void {
           h(
             'p',
             { class: 'secondary' },
-            'Open a site and click the Appify icon in the toolbar, or add one on the left. Appify gives it a web app manifest you control: a tabbed window, the right in-app pages, icons and more.',
+            'Open a site and click the Tabulous icon in the toolbar, or add one on the left. Tabulous gives it a web app manifest you control: a tabbed window, the right in-app pages, icons and more.',
           ),
         ),
       );

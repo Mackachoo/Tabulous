@@ -1,5 +1,5 @@
 // Chrome's desktop tab strip flags. Extensions can open chrome://flags but not
-// change it, so Appify links straight to each flag and lets the user flip it.
+// change it, so Tabulous links straight to each flag and lets the user flip it.
 
 export interface ChromeFlag {
   id: string;
@@ -18,7 +18,7 @@ export const TAB_STRIP_FLAGS: ChromeFlag[] = [
   {
     id: 'enable-desktop-pwas-tab-strip-customizations',
     title: 'Desktop PWA tab strip customizations',
-    why: 'Lets Appify set the pinned home tab and the new tab button page.',
+    why: 'Lets Tabulous set the pinned home tab and the new tab button page.',
     required: true,
   },
   {

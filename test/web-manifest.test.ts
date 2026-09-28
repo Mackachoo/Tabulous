@@ -51,7 +51,7 @@ describe('normaliseScopePath', () => {
 describe('buildManifest', () => {
   it('writes only absolute URLs, since the manifest is a data: URL', () => {
     const m = buildManifest(site({ startPath: '/t/1', newTabPath: '/new', shortcuts: [{ name: 'New', path: '/new' }] }));
-    expect(m.id).toBe('https://www.messenger.com/?appify');
+    expect(m.id).toBe('https://www.messenger.com/?tabulous');
     expect(m.start_url).toBe('https://www.messenger.com/t/1');
     expect(m.scope).toBe('https://www.messenger.com/');
     expect(m.tab_strip?.new_tab_button?.url).toBe('https://www.messenger.com/new');
@@ -91,7 +91,7 @@ describe('buildManifest', () => {
 
   it('keeps the id stable across config changes', () => {
     expect(buildManifest(site({ startPath: '/a' })).id).toBe(buildManifest(site({ startPath: '/b', name: 'X' })).id);
-    expect(appId('http://localhost:8080')).toBe('http://localhost:8080/?appify');
+    expect(appId('http://localhost:8080')).toBe('http://localhost:8080/?tabulous');
   });
 });
 

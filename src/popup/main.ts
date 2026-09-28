@@ -20,7 +20,7 @@ interface State {
   tab: chrome.tabs.Tab;
   origin: string;
   config?: SiteConfig;
-  /** Icons found on the page, ready before "Appify this site" is clicked. */
+  /** Icons found on the page, ready before "Add in Tabulous" is clicked. */
   preparedIcons?: ManifestIcon[];
   permitted: boolean;
   page?: PageInfo;
@@ -99,22 +99,22 @@ async function update(changes: Partial<SiteConfig>): Promise<void> {
  * still waiting on it. So the config is saved in the same instant access is
  * requested, and the service worker applies it once access is granted.
  */
-function appify(): void {
+function addSite(): void {
   const config = newConfig();
   const saved = saveSite(config);
   const granted = requestSitePermission(state.origin);
   state.busy = 'Waiting for access to this site…';
   state.error = undefined;
   render();
-  finishAppify(config, saved, granted);
+  finishAddSite(config, saved, granted);
 }
 
-async function finishAppify(config: SiteConfig, saved: Promise<void>, granted: Promise<boolean>): Promise<void> {
+async function finishAddSite(config: SiteConfig, saved: Promise<void>, granted: Promise<boolean>): Promise<void> {
   await saved;
   if (!(await granted)) {
     await deleteSite(state.origin);
     state.busy = undefined;
-    state.error = 'Appify needs access to this site to replace its manifest.';
+    state.error = 'Tabulous needs access to this site to replace its manifest.';
     return render();
   }
   state.config = config;
@@ -178,7 +178,7 @@ function header(): HTMLElement {
       h('h2', null, config?.name ?? new URL(state.origin).hostname),
       h('div', { class: 'secondary' }, new URL(state.origin).host),
     ),
-    config && toggle(config.enabled, (enabled) => update({ enabled }), 'Appify on this site'),
+    config && toggle(config.enabled, (enabled) => update({ enabled }), 'Tabulous on this site'),
   );
 }
 
@@ -199,7 +199,7 @@ function renderNotWeb(): void {
       'header',
       { class: 'popup-header' },
       h('span', { class: 'site-icon' }, icon('apps')),
-      h('div', { class: 'popup-title' }, h('h2', null, 'Appify'), h('div', { class: 'secondary' }, 'Open a website to turn it into an app.')),
+      h('div', { class: 'popup-title' }, h('h2', null, 'Tabulous'), h('div', { class: 'secondary' }, 'Open a website to turn it into an app.')),
     ),
     h(
       'footer',
@@ -221,14 +221,14 @@ function renderNew(): void {
         'p',
         { class: 'secondary' },
         state.page?.siteManifestUrl
-          ? 'This site has its own web app manifest. Appify replaces it with one you control, so you choose how the app behaves.'
-          : 'This site has no web app manifest. Appify adds one so it installs as an app, with tabs if you like.',
+          ? 'This site has its own web app manifest. Tabulous replaces it with one you control, so you choose how the app behaves.'
+          : 'This site has no web app manifest. Tabulous adds one so it installs as an app, with tabs if you like.',
       ),
-      preset && notice('info', 'Appify has built-in settings for this site.'),
+      preset && notice('info', 'Tabulous has built-in settings for this site.'),
       state.error && notice('error', state.error),
       state.busy
         ? h('div', { class: 'busy' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy)
-        : h('button', { class: 'btn action wide', onclick: appify }, icon('add', 18), 'Appify this site'),
+        : h('button', { class: 'btn action wide', onclick: addSite }, icon('add', 18), 'Add in Tabulous'),
     ),
     footer(),
   );
@@ -240,7 +240,7 @@ function pageStatus(config: SiteConfig): (HTMLElement | false)[] {
     return [
       notice(
         'error',
-        'Appify doesn’t have access to this site, so it can’t add the manifest.',
+        'Tabulous doesn’t have access to this site, so it can’t add the manifest.',
         h(
           'button',
           {
@@ -255,14 +255,14 @@ function pageStatus(config: SiteConfig): (HTMLElement | false)[] {
       ),
     ];
   }
-  if (!config.enabled) return [notice('info', 'Appify is turned off for this site.')];
+  if (!config.enabled) return [notice('info', 'Tabulous is turned off for this site.')];
   if (state.busy) return [h('div', { class: 'busy' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), state.busy)];
   const blocked = state.cspBlocked && !config.cspBypass;
   const installed = page !== undefined && page.displayMode !== 'browser';
   return [
-    page?.appifyManifestPresent
-      ? !blocked && notice('ok', installed ? `Running as an installed app (${page.displayMode}).` : 'Appify’s manifest is active on this page.')
-      : notice('info', 'Reload the page to apply Appify’s manifest.', h('button', { class: 'btn', onclick: reloadTab }, icon('refresh', 18), 'Reload')),
+    page?.tabulousManifestPresent
+      ? !blocked && notice('ok', installed ? `Running as an installed app (${page.displayMode}).` : 'The Tabulous manifest is active on this page.')
+      : notice('info', 'Reload the page to apply the Tabulous manifest.', h('button', { class: 'btn', onclick: reloadTab }, icon('refresh', 18), 'Reload')),
   ];
 }
 
@@ -277,8 +277,8 @@ function cspSection(config: SiteConfig): HTMLElement | false {
   if (!state.cspBlocked) return false;
   return notice(
     'warn',
-    h('strong', null, 'This site’s security policy blocks Appify’s manifest.'),
-    'Appify can remove the Content-Security-Policy header for this site only. That makes the site less protected if it has a script injection bug.',
+    h('strong', null, 'This site’s security policy blocks the Tabulous manifest.'),
+    'Tabulous can remove the Content-Security-Policy header for this site only. That makes the site less protected if it has a script injection bug.',
     h(
       'button',
       {

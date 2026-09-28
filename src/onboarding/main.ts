@@ -8,15 +8,15 @@ const root = $('#app');
 function flagStatus(state: FlagState) {
   switch (state.status) {
     case 'working':
-      return notice('ok', 'Tabbed mode is working: an Appify app opened with a tab strip.');
+      return notice('ok', 'Tabbed mode is working: a Tabulous app opened with a tab strip.');
     case 'not-working':
       return notice(
         'warn',
-        'An Appify app last opened without a tab strip.',
+        'A Tabulous app last opened without a tab strip.',
         'Check that both required flags are Enabled and that Chrome has been relaunched. If they are, uninstall and reinstall the app so Chrome picks up the tabbed manifest.',
       );
     default:
-      return notice('info', 'Not checked yet. Once you install an app with Appify and open it, this page shows whether tabbed mode works.');
+      return notice('info', 'Not checked yet. Once you install an app with Tabulous and open it, this page shows whether tabbed mode works.');
   }
 }
 
@@ -59,7 +59,7 @@ function render(state: FlagState): void {
       h('div', { class: 'card' }, listRow('Relaunch after changing flags', ['Click ', h('strong', null, 'Relaunch'), ' at the bottom of the flags page.'])),
     ),
     section(
-      '3. Appify a site',
+      '3. Add a site in Tabulous',
       h(
         'div',
         { class: 'card' },
@@ -69,7 +69,7 @@ function render(state: FlagState): void {
           h(
             'ol',
             { class: 'steps' },
-            h('li', null, 'Open the site, click the Appify icon in the toolbar and choose ', h('strong', null, 'Appify this site'), '.'),
+            h('li', null, 'Open the site, click the Tabulous icon in the toolbar and choose ', h('strong', null, 'Add in Tabulous'), '.'),
             h('li', null, 'Open the Chrome menu ⋮ › Cast, save and share › Install page as app.'),
           ),
         ),

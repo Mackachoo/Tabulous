@@ -3,7 +3,7 @@ import pkg from '../package.json' with { type: 'json' };
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'Appify',
+  name: 'Tabulous',
   version: pkg.version,
   description: 'Turn any site into an installable, tabbed web app by managing its manifest.',
   minimum_chrome_version: '120',

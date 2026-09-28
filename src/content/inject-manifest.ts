@@ -1,11 +1,11 @@
 // Registered at document_start on every site the user has appified. Replaces the
-// site's <link rel="manifest"> with Appify's data: manifest and keeps it there.
+// site's <link rel="manifest"> with Tabulous's data: manifest and keeps it there.
 
-import type { AppifyMessage } from '../lib/messages';
+import type { TabulousMessage } from '../lib/messages';
 import { getSite, siteKey } from '../lib/storage';
 import { buildManifest, manifestDataUrl, type SiteConfig } from '../lib/web-manifest';
 
-const LOG = '[Appify]';
+const LOG = '[Tabulous]';
 
 let href: string | undefined;
 let config: SiteConfig | undefined;
@@ -20,12 +20,12 @@ function manifestHref(site: SiteConfig | undefined): string | undefined {
   }
 }
 
-/** Makes Appify's link the only manifest link. Cheap enough to run on every head mutation. */
+/** Makes Tabulous's link the only manifest link. Cheap enough to run on every head mutation. */
 function apply(): void {
   const head = document.head;
   if (!head) return;
   const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="manifest"]'));
-  const ours = links.find((l) => l.dataset.appify !== undefined);
+  const ours = links.find((l) => l.dataset.tabulous !== undefined);
 
   if (!href) {
     ours?.remove();
@@ -38,7 +38,7 @@ function apply(): void {
 
   const link = ours ?? document.createElement('link');
   link.rel = 'manifest';
-  link.dataset.appify = '';
+  link.dataset.tabulous = '';
   link.setAttribute('href', href);
   if (!ours) head.prepend(link);
 }
@@ -68,7 +68,7 @@ function watchForHead(): void {
   rootObserver.observe(root, { childList: true, subtree: true });
 }
 
-function send(message: AppifyMessage): void {
+function send(message: TabulousMessage): void {
   chrome.runtime.sendMessage(message).catch(() => {
     // Service worker restarting; the next page load will report again.
   });
@@ -81,7 +81,7 @@ function reportCspViolations(): void {
   reportingCsp = true;
   document.addEventListener('securitypolicyviolation', (event) => {
     if (event.effectiveDirective === 'manifest-src' && href && event.blockedURI.startsWith('data')) {
-      console.warn(LOG, "The site's Content-Security-Policy blocked Appify's manifest.");
+      console.warn(LOG, "The site's Content-Security-Policy blocked Tabulous's manifest.");
       send({ type: 'csp-blocked' });
     }
   });
@@ -119,8 +119,8 @@ async function main(): Promise<void> {
 
 // The service worker also injects this into tabs that were open before the site
 // was added, which can land on a page where the registered copy already runs.
-const scope = globalThis as typeof globalThis & { __appify?: boolean };
-if (!scope.__appify) {
-  scope.__appify = true;
+const scope = globalThis as typeof globalThis & { __tabulous?: boolean };
+if (!scope.__tabulous) {
+  scope.__tabulous = true;
   main().catch((e) => console.warn(LOG, e));
 }

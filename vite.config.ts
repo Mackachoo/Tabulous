@@ -7,12 +7,12 @@ import manifest from './src/manifest.ts';
 /**
  * CRXJS lists `?script` imports as web_accessible_resources on every site. The
  * injector is registered with chrome.scripting, which doesn't need that, and
- * exposing it would let any page detect Appify. Dev builds keep it for HMR.
+ * exposing it would let any page detect Tabulous. Dev builds keep it for HMR.
  */
 function dropWebAccessibleResources(): Plugin {
   let outDir = 'dist';
   return {
-    name: 'appify:drop-web-accessible-resources',
+    name: 'tabulous:drop-web-accessible-resources',
     apply: 'build',
     enforce: 'post',
     configResolved(config) {

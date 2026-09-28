@@ -2,7 +2,7 @@
 // stored site configs, and turns reports from app windows into badges.
 
 import injectScript from '../content/inject-manifest?script&iife';
-import type { AppifyMessage } from '../lib/messages';
+import type { TabulousMessage } from '../lib/messages';
 import type { SiteConfig } from '../lib/web-manifest';
 import { hasSitePermission, originPattern } from '../lib/permissions';
 import {
@@ -15,7 +15,7 @@ import {
   setFlagState,
 } from '../lib/storage';
 
-const SCRIPT_ID = 'appify-inject';
+const SCRIPT_ID = 'tabulous-inject';
 const WARN_COLOR = '#d93025';
 
 async function syncContentScripts(): Promise<void> {
@@ -63,7 +63,7 @@ async function syncBadge(): Promise<void> {
   await chrome.action.setBadgeBackgroundColor({ color: WARN_COLOR });
   await chrome.action.setBadgeText({ text: broken ? '!' : '' });
   await chrome.action.setTitle({
-    title: broken ? 'Appify: tabbed mode is off. Open to enable the Chrome flags.' : 'Appify',
+    title: broken ? 'Tabulous: tabbed mode is off. Open to enable the Chrome flags.' : 'Tabulous',
   });
 }
 
@@ -74,7 +74,7 @@ function sync(): Promise<void> {
     .then(() => Promise.all([syncContentScripts(), syncCspRules(), syncBadge()]))
     .then(
       () => undefined,
-      (e) => console.error('Appify sync failed', e),
+      (e) => console.error('Tabulous sync failed', e),
     );
   return queue;
 }
@@ -122,7 +122,7 @@ chrome.storage.onChanged.addListener(async (changes, area) => {
   }
 });
 
-chrome.runtime.onMessage.addListener((message: AppifyMessage, sender) => {
+chrome.runtime.onMessage.addListener((message: TabulousMessage, sender) => {
   const tabId = sender.tab?.id;
   const origin = sender.origin ?? (sender.url ? new URL(sender.url).origin : undefined);
   if (!origin) return;
@@ -136,8 +136,8 @@ chrome.runtime.onMessage.addListener((message: AppifyMessage, sender) => {
       await chrome.action.setTitle({
         tabId,
         title: site?.cspBypass
-          ? "Appify: this site's page blocks the manifest in a way Appify can't remove."
-          : "Appify: this site's security policy blocked the app manifest. Open to fix.",
+          ? "Tabulous: this site's page blocks the manifest in a way Tabulous can't remove."
+          : "Tabulous: this site's security policy blocked the app manifest. Open to fix.",
       });
     })();
   }

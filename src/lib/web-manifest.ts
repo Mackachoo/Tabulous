@@ -1,4 +1,4 @@
-// Types for the parts of the Web App Manifest Appify writes, plus the builder
+// Types for the parts of the Web App Manifest Tabulous writes, plus the builder
 // that turns a user's SiteConfig into the manifest injected into the page.
 
 export type Display = 'fullscreen' | 'standalone' | 'minimal-ui' | 'browser';
@@ -143,7 +143,7 @@ export function scopePattern(origin: string, pathname: string): ScopePattern {
 
 /** Stable per origin, so Chrome treats every injected copy as the same app. */
 export function appId(origin: string): string {
-  return absoluteUrl(origin, '/?appify');
+  return absoluteUrl(origin, '/?tabulous');
 }
 
 export function buildManifest(config: SiteConfig): WebAppManifest {

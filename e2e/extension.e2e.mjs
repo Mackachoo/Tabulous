@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'appify-e2e-'));
+const WORK = fs.mkdtempSync(path.join(os.tmpdir(), 'tabulous-e2e-'));
 const EXT = path.join(WORK, 'ext');
 const SHOTS = path.join(ROOT, 'e2e', 'screenshots');
 const ICON = fs.readFileSync(path.join(ROOT, 'e2e/fixtures/icon-192.png'));
@@ -127,7 +127,7 @@ try {
   await page.goto('http://localhost:8123/t/1');
   await sleep(800); // past the page's own re-add at 300ms
   const links = await page.evaluate(() => [...document.querySelectorAll('link[rel~=manifest]')].map((l) => l.getAttribute('href').slice(0, 30)));
-  check('only Appify’s manifest link remains after the site re-adds its own', links.length === 1 && links[0].startsWith('data:application/json'), JSON.stringify(links));
+  check('only Tabulous’s manifest link remains after the site re-adds its own', links.length === 1 && links[0].startsWith('data:application/json'), JSON.stringify(links));
 
   const cdp = await ctx.newCDPSession(page);
   const app = await cdp.send('Page.getAppManifest');
@@ -147,7 +147,7 @@ try {
   const blocked = await strictCdp.send('Page.getAppManifest');
   await sleep(500);
   check('the site’s CSP blocks the data: manifest', !blocked.data);
-  check('the CSP violation is reported to the service worker', Boolean((await storageGet('appify:cspBlocked'))?.['http://localhost:8124']));
+  check('the CSP violation is reported to the service worker', Boolean((await storageGet('tabulous:cspBlocked'))?.['http://localhost:8124']));
 
   await saveSite(site('http://localhost:8124', { cspBypass: true }));
   await sleep(800);
@@ -210,20 +210,20 @@ try {
   check('the popup shows the manifest is active', (await configured.view.locator('main').innerText()).includes('manifest is active'), configured.errors.join('; '));
 
   const fresh = await popup('http://localhost:8125/', 'popup-new.png');
-  check('the popup offers to appify a new site', (await fresh.view.locator('main').innerText()).includes('Appify this site'), fresh.errors.join('; '));
-  await fresh.view.getByRole('button', { name: 'Appify this site' }).click();
+  check('the popup offers to add a new site', (await fresh.view.locator('main').innerText()).includes('Add in Tabulous'), fresh.errors.join('; '));
+  await fresh.view.getByRole('button', { name: 'Add in Tabulous' }).click();
   await sleep(2500);
   const created = await storageGet('site:http://localhost:8125');
-  check('"Appify this site" saves a config using the site’s name and icons', created?.name === 'Site Own' && created?.icons?.length === 3, `${created?.name}, ${created?.icons?.length} icons`);
+  check('"Add in Tabulous" saves a config using the site’s name and icons', created?.name === 'Site Own' && created?.icons?.length === 3, `${created?.name}, ${created?.icons?.length} icons`);
   // On macOS the site access prompt can close the popup mid-click. The config
   // must already be saved by then, and the open tab must get the manifest
   // without a reload.
   const closing = await popup('http://localhost:8126/t/1', 'popup-closing.png');
-  await closing.view.getByRole('button', { name: 'Appify this site' }).click();
+  await closing.view.getByRole('button', { name: 'Add in Tabulous' }).click();
   await closing.view.close();
   await sleep(1500);
   const survived = await storageGet('site:http://localhost:8126');
-  check('closing the popup straight after "Appify this site" keeps the config', survived?.icons?.length === 3, `${survived?.name}, ${survived?.icons?.length} icons`);
+  check('closing the popup straight after "Add in Tabulous" keeps the config', survived?.icons?.length === 3, `${survived?.name}, ${survived?.icons?.length} icons`);
   const openTab = ctx.pages().find((p) => p.url() === 'http://localhost:8126/t/1');
   const liveLinks = await openTab?.evaluate(() => [...document.querySelectorAll('link[rel~=manifest]')].map((l) => l.getAttribute('href').slice(0, 30)));
   check('the already-open tab gets the manifest without a reload', liveLinks?.length === 1 && liveLinks[0].startsWith('data:application/json'), JSON.stringify(liveLinks));

@@ -15,10 +15,10 @@ export interface PageInfo {
   origin: string;
   title: string;
   themeColor?: string;
-  /** The site's own manifest, if it has one and it isn't Appify's. */
+  /** The site's own manifest, if it has one and it isn't Tabulous's. */
   siteManifestUrl?: string;
   siteManifest?: Record<string, unknown>;
-  appifyManifestPresent: boolean;
+  tabulousManifestPresent: boolean;
   icons: IconCandidate[];
   /** The page's CSP would block a data: manifest. */
   cspBlocksManifest: boolean;
@@ -33,11 +33,11 @@ export async function inspectPage(): Promise<PageInfo> {
   const icons: IconCandidate[] = [];
   let siteManifestUrl: string | undefined;
   let siteManifest: Record<string, unknown> | undefined;
-  let appifyManifestPresent = false;
+  let tabulousManifestPresent = false;
 
   for (const link of Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="manifest"]'))) {
-    if (link.dataset.appify !== undefined) {
-      appifyManifestPresent = true;
+    if (link.dataset.tabulous !== undefined) {
+      tabulousManifestPresent = true;
       continue;
     }
     if (siteManifestUrl) continue;
@@ -111,7 +111,7 @@ export async function inspectPage(): Promise<PageInfo> {
       undefined,
     siteManifestUrl,
     siteManifest,
-    appifyManifestPresent,
+    tabulousManifestPresent,
     icons: uniqueIcons,
     cspBlocksManifest: policies.some(blocks),
     displayMode,
