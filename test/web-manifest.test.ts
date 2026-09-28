@@ -7,6 +7,7 @@ import {
   defaultSiteConfig,
   manifestDataUrl,
   normaliseScopePath,
+  siteManifestFields,
   toOrigin,
   validate,
   type SiteConfig,
@@ -92,6 +93,91 @@ describe('buildManifest', () => {
   it('keeps the id stable across config changes', () => {
     expect(buildManifest(site({ startPath: '/a' })).id).toBe(buildManifest(site({ startPath: '/b', name: 'X' })).id);
     expect(appId('http://localhost:8080')).toBe('http://localhost:8080/?tabulous');
+  });
+});
+
+describe('siteManifestFields', () => {
+  const MANIFEST_URL = 'https://www.messenger.com/static/app.webmanifest';
+  const read = (manifest: Record<string, unknown>) => siteManifestFields(manifest, MANIFEST_URL, 'https://www.messenger.com');
+
+  it('keeps features Tabulous doesn’t generate and drops the ones it does', () => {
+    const fields = read({
+      id: '/',
+      name: 'Site',
+      start_url: '/',
+      scope: '/t/',
+      display: 'standalone',
+      icons: [{ src: 'i.png' }],
+      theme_color: '#000',
+      prefer_related_applications: true,
+      related_applications: [{ platform: 'play' }],
+      description: 'Chat',
+      categories: ['social', 3],
+      handle_links: 'preferred',
+    });
+    expect(fields).toEqual({ description: 'Chat', categories: ['social'], handle_links: 'preferred' });
+  });
+
+  it('resolves URLs against the manifest, keeping %s in link handlers', () => {
+    const fields = read({
+      shortcuts: [{ name: 'New', url: '/new', icons: [{ src: 'new.png', sizes: '96x96' }] }],
+      protocol_handlers: [{ protocol: 'mailto', url: 'compose?to=%s' }],
+      share_target: { action: '/share', method: 'GET', params: { text: 't' } },
+      file_handlers: [{ action: '/open', accept: { 'text/plain': ['.txt'] } }],
+      screenshots: [{ src: 'https://cdn.example/shot.png', sizes: '1280x800', form_factor: 'wide' }],
+    });
+    expect(fields.shortcuts).toEqual([
+      { name: 'New', url: 'https://www.messenger.com/new', icons: [{ src: 'https://www.messenger.com/static/new.png', sizes: '96x96' }] },
+    ]);
+    expect(fields.protocol_handlers).toEqual([{ protocol: 'mailto', url: 'https://www.messenger.com/static/compose?to=%s' }]);
+    expect(fields.share_target).toEqual({ action: 'https://www.messenger.com/share', method: 'GET', params: { text: 't' } });
+    expect(fields.file_handlers).toEqual([{ action: 'https://www.messenger.com/open', accept: { 'text/plain': ['.txt'] } }]);
+    expect(fields.screenshots).toEqual([{ src: 'https://cdn.example/shot.png', sizes: '1280x800', form_factor: 'wide' }]);
+  });
+
+  it('drops pages on other origins and malformed entries', () => {
+    const fields = read({
+      shortcuts: [{ name: 'Elsewhere', url: 'https://evil.example/' }, 'nope', { name: 'No URL' }],
+      share_target: { action: 'https://other.example/share' },
+      screenshots: [{ src: 'javascript:alert(1)' }],
+    });
+    expect(fields).toEqual({});
+  });
+});
+
+describe('buildManifest with the site’s own fields', () => {
+  const siteFields = {
+    description: 'From the site',
+    shortcuts: [{ name: 'Site shortcut', url: 'https://www.messenger.com/s' }],
+    protocol_handlers: [{ protocol: 'mailto', url: 'https://www.messenger.com/m?to=%s' }],
+    scope: 'https://www.messenger.com/nope/',
+  };
+
+  it('adds them under the generated members, with overrides on top', () => {
+    const m = buildManifest(site({ siteFields, overrides: { description: 'Override' } }));
+    expect(m.protocol_handlers).toEqual(siteFields.protocol_handlers);
+    expect(m.shortcuts).toEqual(siteFields.shortcuts);
+    expect(m.scope).toBe('https://www.messenger.com/');
+    expect(m.description).toBe('Override');
+  });
+
+  it('lets the user’s shortcuts replace the site’s', () => {
+    const m = buildManifest(site({ siteFields, shortcuts: [{ name: 'Mine', path: '/mine' }] }));
+    expect(m.shortcuts).toEqual([{ name: 'Mine', url: 'https://www.messenger.com/mine' }]);
+  });
+
+  it('leaves them out when turned off, and keeps them for configs saved before the setting', () => {
+    expect(buildManifest(site({ siteFields, keepSiteFields: false }))).not.toHaveProperty('protocol_handlers');
+    expect(buildManifest(site({ siteFields, keepSiteFields: undefined }))).toHaveProperty('protocol_handlers');
+  });
+
+  it('warns about site entries outside the in-app path', () => {
+    const problems = validate(site({ siteFields, scopePath: '/t/', startPath: '/t/' }));
+    expect(problems.map((p) => p.message)).toEqual([
+      expect.stringContaining('1 of the site’s own shortcuts is outside'),
+      expect.stringContaining('1 of the site’s own link handlers is outside'),
+    ]);
+    expect(validate(site({ siteFields, scopePath: '/t/', startPath: '/t/', keepSiteFields: false }))).toEqual([]);
   });
 });
 

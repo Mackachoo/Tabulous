@@ -74,6 +74,12 @@ export interface SiteConfig {
   shortcuts: Shortcut[];
   /** Remove the site's CSP header so the data: manifest isn't blocked. */
   cspBypass: boolean;
+  /** Members carried over from the site's own manifest (see `siteManifestFields`), URLs made absolute. */
+  siteFields?: Record<string, unknown>;
+  /** Where `siteFields` were read from. */
+  siteManifestUrl?: string;
+  /** Include `siteFields` in the manifest. Configs saved before this setting existed count as on. */
+  keepSiteFields?: boolean;
   /** Raw manifest members merged over the generated manifest. */
   overrides: Record<string, unknown>;
   /** Just added from the popup: it shows the setup form until the user clicks Done. */
@@ -95,6 +101,7 @@ export function defaultSiteConfig(origin: string, partial: Partial<SiteConfig> =
     launchMode: 'auto',
     shortcuts: [],
     cspBypass: false,
+    keepSiteFields: true,
     overrides: {},
     updatedAt: Date.now(),
     ...partial,
@@ -185,7 +192,86 @@ export function buildManifest(config: SiteConfig): WebAppManifest {
     manifest.shortcuts = shortcuts.map((s) => ({ name: s.name, url: absoluteUrl(origin, s.path) }));
   }
 
-  return { ...manifest, ...config.overrides };
+  return { ...inheritedFields(config), ...manifest, ...config.overrides };
+}
+
+function inheritedFields(config: SiteConfig): Record<string, unknown> {
+  return config.keepSiteFields === false ? {} : (config.siteFields ?? {});
+}
+
+type Json = Record<string, unknown>;
+const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
+const objects = (value: unknown): Json[] => (Array.isArray(value) ? value.filter(isObject) : []);
+
+/**
+ * The members of a site's own manifest that Tabulous keeps: features it doesn't
+ * generate itself. Members it does generate (name, scope, icons…) are left out,
+ * as are `prefer_related_applications` and `related_applications`, which can
+ * stop Chrome offering to install. Relative URLs are resolved against the
+ * manifest's URL, because Tabulous's data: manifest has no base URL. Pages the
+ * app opens must be on `origin`; images may be anywhere.
+ */
+export function siteManifestFields(manifest: Json, manifestUrl: string, origin: string): Json {
+  const resolve = (value: unknown): URL | undefined => {
+    if (typeof value !== 'string' || !value) return undefined;
+    try {
+      return new URL(value, manifestUrl);
+    } catch {
+      return undefined;
+    }
+  };
+  const page = (value: unknown) => {
+    const url = resolve(value);
+    return url?.origin === origin ? url.href : undefined;
+  };
+  const image = (value: unknown) => {
+    const url = resolve(value);
+    return url && /^(https?|data):$/.test(url.protocol) ? url.href : undefined;
+  };
+  const images = (value: unknown) =>
+    objects(value).flatMap((i) => {
+      const src = image(i.src);
+      return src ? [{ ...i, src }] : [];
+    });
+  // Keeps an entry only when `key` is a page on the site, rewritten absolute.
+  const withPage = (entry: Json, key: string): Json[] => {
+    const url = page(entry[key]);
+    if (!url) return [];
+    const out: Json = { ...entry, [key]: url };
+    if ('icons' in entry) out.icons = images(entry.icons);
+    return [out];
+  };
+
+  const fields: Json = {};
+  for (const key of ['description', 'lang', 'dir', 'orientation', 'handle_links']) {
+    if (typeof manifest[key] === 'string' && manifest[key]) fields[key] = manifest[key];
+  }
+  if (Array.isArray(manifest.categories)) {
+    const categories = manifest.categories.filter((c) => typeof c === 'string');
+    if (categories.length) fields.categories = categories;
+  }
+
+  const lists: [key: string, urlKey: string][] = [
+    ['shortcuts', 'url'],
+    ['protocol_handlers', 'url'],
+    ['file_handlers', 'action'],
+  ];
+  for (const [key, urlKey] of lists) {
+    const entries = objects(manifest[key]).flatMap((e) => withPage(e, urlKey));
+    if (entries.length) fields[key] = entries;
+  }
+  if (isObject(manifest.share_target)) {
+    const [shareTarget] = withPage(manifest.share_target, 'action');
+    if (shareTarget) fields.share_target = shareTarget;
+  }
+  const screenshots = images(manifest.screenshots);
+  if (screenshots.length) fields.screenshots = screenshots;
+  return fields;
+}
+
+/** "shortcuts (4)", "description"… for showing what was carried over. */
+export function describeSiteFields(fields: Json | undefined): string[] {
+  return Object.entries(fields ?? {}).map(([key, value]) => (Array.isArray(value) ? `${key} (${value.length})` : key));
 }
 
 export interface ScopeCheck {
@@ -259,6 +345,22 @@ export function validate(config: SiteConfig): Problem[] {
       new URLPattern(scopePattern(config.origin, p));
     } catch {
       err(`Home tab pattern "${p}" is not a valid URL pattern.`);
+    }
+  }
+
+  // Chrome ignores these when they point outside the scope.
+  if (scope) {
+    const inherited = inheritedFields(config);
+    const userShortcuts = config.shortcuts.some((s) => s.name.trim() && s.path.trim());
+    const checks: [label: string, urls: unknown[]][] = [
+      ['shortcuts', userShortcuts ? [] : objects(inherited.shortcuts).map((s) => s.url)],
+      ['link handlers', objects(inherited.protocol_handlers).map((p) => p.url)],
+      ['file handlers', objects(inherited.file_handlers).map((f) => f.action)],
+      ['share target', isObject(inherited.share_target) ? [inherited.share_target.action] : []],
+    ];
+    for (const [label, urls] of checks) {
+      const outside = urls.filter((u) => typeof u === 'string' && !checkUrl(config, u).inScope).length;
+      if (outside) warn(`${outside} of the site’s own ${label} ${outside === 1 ? 'is' : 'are'} outside the in-app path, so Chrome will ignore ${outside === 1 ? 'it' : 'them'}.`);
     }
   }
   return problems;

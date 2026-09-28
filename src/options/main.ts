@@ -1,5 +1,5 @@
 import { TAB_STRIP_FLAGS } from '../lib/flags';
-import { blobToIcons, candidatesFromSite, iconsFromCandidates, largestIcon } from '../lib/icons';
+import { blobToIcons, iconsFromCandidates, largestIcon, readSite } from '../lib/icons';
 import { hasSitePermission, removeSitePermission, requestSitePermission } from '../lib/permissions';
 import { deleteSite, getAllSites, isSiteKey, saveSite } from '../lib/storage';
 import {
@@ -7,6 +7,8 @@ import {
   buildManifest,
   checkUrl,
   defaultSiteConfig,
+  describeSiteFields,
+  siteManifestFields,
   toOrigin,
   validate,
   type LaunchClientMode,
@@ -91,7 +93,7 @@ async function addSite(input: string): Promise<void> {
     await loadSites();
   }
   select(origin);
-  if (granted) await fetchIcons();
+  if (granted) await fromSite({ icons: true, fields: true });
   else say('warn', 'Tabulous was not given access to this site, so the manifest won’t be added until you grant it.');
 }
 
@@ -121,16 +123,27 @@ async function grant(origin: string): Promise<void> {
   render();
 }
 
-async function fetchIcons(): Promise<void> {
+/** Reads the site's icons, its own manifest's features, or both, into the draft. */
+async function fromSite(parts: { icons?: boolean; fields?: boolean }): Promise<void> {
   const draft = state.draft;
   if (!draft) return;
-  say('info', 'Looking for icons on the site…');
+  say('info', 'Reading the site…');
   try {
-    const candidates = await candidatesFromSite(absoluteUrl(draft.origin, draft.startPath));
-    const { icons } = await iconsFromCandidates(candidates, draft.backgroundColor);
-    if (!icons.length) return say('warn', 'No usable icons found on the site. Upload one instead.');
-    change({ icons });
-    say('ok', 'Icons updated from the site. Save to keep them.');
+    const site = await readSite(absoluteUrl(draft.origin, draft.startPath));
+    const updated: string[] = [];
+    // Fields first: a site without usable icons still has its manifest read.
+    if (parts.fields) {
+      const siteFields = site.manifest && site.manifestUrl ? siteManifestFields(site.manifest, site.manifestUrl, draft.origin) : {};
+      change({ siteFields, siteManifestUrl: site.manifestUrl });
+      updated.push('the site’s own manifest features');
+    }
+    if (parts.icons) {
+      const { icons } = await iconsFromCandidates(site.candidates, draft.backgroundColor);
+      if (!icons.length) return say('warn', 'No usable icons found on the site. Upload one instead.');
+      change({ icons });
+      updated.unshift('icons');
+    }
+    say('ok', `Updated ${updated.join(' and ')} from the site. Save to keep them.`);
   } catch (e) {
     say('error', `Couldn’t load the site: ${(e as Error).message}`);
   }
@@ -339,7 +352,7 @@ function editor(draft: SiteConfig): HTMLElement {
         h(
           'div',
           { class: 'row' },
-          h('button', { class: 'btn', onclick: fetchIcons, disabled: !state.permitted[draft.origin] }, icon('refresh', 18), 'Get icons from site'),
+          h('button', { class: 'btn', onclick: () => fromSite({ icons: true }), disabled: !state.permitted[draft.origin] }, icon('refresh', 18), 'Get icons from site'),
           h('button', { class: 'btn', onclick: () => uploadInput.click() }, icon('upload', 18), 'Upload image'),
           uploadInput,
         ),
@@ -411,6 +424,8 @@ function editor(draft: SiteConfig): HTMLElement {
       ),
     ),
 
+    siteFieldsSection(draft),
+
     section(
       'Advanced',
       toggleRow(
@@ -474,6 +489,24 @@ function editor(draft: SiteConfig): HTMLElement {
 
   refreshLive();
   return h('div', { class: 'editor' }, live.saveBar, h('div', { class: 'editor-columns' }, main, side));
+}
+
+function siteFieldsSection(draft: SiteConfig): HTMLElement {
+  const kept = describeSiteFields(draft.siteFields);
+  return section(
+    'From the site’s manifest',
+    toggleRow(
+      'Keep the site’s own features',
+      'Adds shortcuts, link and file handlers, share target, description and screenshots from the site’s manifest. Your settings here win where both set the same thing.',
+      draft.keepSiteFields !== false,
+      (keepSiteFields) => change({ keepSiteFields }),
+    ),
+    listRow(
+      kept.length ? 'Found on the site' : 'Nothing found yet',
+      kept.length ? kept.join(' · ') : draft.siteManifestUrl ? 'The site’s manifest has nothing Tabulous doesn’t set itself.' : 'Read the site’s manifest to find features worth keeping.',
+      h('button', { class: 'btn', onclick: () => fromSite({ fields: true }), disabled: !state.permitted[draft.origin] }, icon('refresh', 18), 'Refresh from site'),
+    ),
+  );
 }
 
 function refreshLive(): void {
