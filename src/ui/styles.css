@@ -388,13 +388,13 @@ input[type='color']::-webkit-color-swatch {
   border-radius: 4px;
 }
 
-label.field {
+.field {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
 }
-label.field > span:first-child {
+.field > span:first-child {
   font-weight: 500;
 }
 

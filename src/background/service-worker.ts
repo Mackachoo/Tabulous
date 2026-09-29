@@ -142,6 +142,14 @@ chrome.runtime.onMessage.addListener((message: TabulousMessage, sender) => {
     })();
   }
 
+  if (message.type === 'set-css' && tabId !== undefined) {
+    const target = { tabId, frameIds: [sender.frameId ?? 0] };
+    (async () => {
+      if (message.previous) await chrome.scripting.removeCSS({ target, css: message.previous });
+      if (message.css) await chrome.scripting.insertCSS({ target, css: message.css });
+    })().catch((e) => console.warn('Tabulous could not update page CSS', e));
+  }
+
   if (message.type === 'display-mode' && message.wantsTabbed) {
     const status = message.mode === 'tabbed' ? 'working' : 'not-working';
     // Only write on change: every app window load reports, and writes trigger a sync.

@@ -185,6 +185,64 @@ try {
   const renamed = JSON.parse((await cdp.send('Page.getAppManifest')).data ?? '{}');
   check('editing the config updates the open page', renamed.name === 'Renamed', renamed.name);
 
+  // --- window style, link handlers, shortcuts and the install dialog ---------------
+  await saveSite(
+    site('http://localhost:8123', {
+      name: 'Renamed',
+      tabbed: false,
+      display: 'minimal-ui',
+      titleBarOverlay: true,
+      dragSelector: 'h1',
+      description: 'A test app',
+      protocolHandlers: [{ protocol: 'mailto', path: '/compose?to=%s' }],
+      shortcuts: [{ name: 'New', path: '/new', description: 'Start something', icon }],
+      screenshots: [{ src: icon, sizes: '192x192', type: 'image/png', form_factor: 'wide', label: 'Home' }],
+    }),
+  );
+  await sleep(500);
+  const featured = await cdp.send('Page.getAppManifest');
+  const featuredRaw = JSON.parse(featured.data ?? '{}');
+  check('the richer manifest has no parse errors', featured.errors.length === 0, JSON.stringify(featured.errors));
+  check(
+    'Chrome parses the title bar overlay and window style',
+    featured.manifest?.displayOverrides?.join() === 'kWindowControlsOverlay,kMinimalUi',
+    String(featured.manifest?.displayOverrides),
+  );
+  check(
+    'Chrome parses the mailto: link handler',
+    featured.manifest?.protocolHandlers?.[0]?.protocol === 'mailto' && featured.manifest.protocolHandlers[0].url === 'http://localhost:8123/compose?to=%s',
+    JSON.stringify(featured.manifest?.protocolHandlers),
+  );
+  check(
+    'the manifest has the description, screenshot and shortcut icon',
+    featuredRaw.description === 'A test app' &&
+      featuredRaw.screenshots?.[0]?.form_factor === 'wide' &&
+      featuredRaw.shortcuts?.[0]?.description === 'Start something' &&
+      featuredRaw.shortcuts[0].icons?.[0]?.sizes === '96x96',
+    JSON.stringify({ description: featuredRaw.description, shortcut: { ...featuredRaw.shortcuts?.[0], icons: featuredRaw.shortcuts?.[0]?.icons?.length } }),
+  );
+  // insertCSS sheets aren't in document.styleSheets, DevTools can't emulate
+  // display-mode, and it won't return an injected sheet's text. So count the
+  // page's injected sheets; only Tabulous injects CSS here. The rules
+  // themselves are covered by the pageCss unit tests.
+  const cssCdp = await ctx.newCDPSession(page);
+  const sheets = new Map();
+  cssCdp.on('CSS.styleSheetAdded', ({ header }) => sheets.set(header.styleSheetId, header));
+  cssCdp.on('CSS.styleSheetRemoved', ({ styleSheetId }) => sheets.delete(styleSheetId));
+  await cssCdp.send('DOM.enable');
+  await cssCdp.send('CSS.enable');
+  const injectedSheets = async () => {
+    await sleep(300);
+    return [...sheets.values()].filter((s) => s.origin === 'injected').length;
+  };
+  const inserted = await injectedSheets();
+  check('the drag area CSS is added to the page', inserted === 1, `${inserted} sheet(s)`);
+  await saveSite(site('http://localhost:8123', { name: 'Renamed', tabbed: false, titleBarOverlay: false, dragSelector: 'h1' }));
+  await sleep(500);
+  const afterOff = await injectedSheets();
+  check('turning the title bar overlay off removes the CSS', afterOff === 0, `${afterOff} sheet(s)`);
+  await cssCdp.detach();
+
   // --- pages ------------------------------------------------------------------------
   const editor = await ctx.newPage();
   await editor.setViewportSize({ width: 1280, height: 1000 });
@@ -194,6 +252,47 @@ try {
   await editor.screenshot({ path: `${SHOTS}/editor.png`, fullPage: true });
   await editor.emulateMedia({ colorScheme: 'dark' });
   await editor.screenshot({ path: `${SHOTS}/editor-dark.png`, fullPage: true });
+  await editor.emulateMedia({ colorScheme: 'light' });
+  // The title bar overlay and shortcut rows, as edited in the page.
+  await editor.getByRole('switch', { name: 'Put the page in the title bar' }).click();
+  await editor.getByLabel('Drag area').fill('h1');
+  await editor.getByRole('button', { name: 'Add shortcut' }).click();
+  await editor.getByLabel('Shortcut 1 name').fill('Compose');
+  await editor.getByLabel('Shortcut 1 page').fill('/compose');
+  await editor.getByRole('button', { name: 'Add shortcut' }).click();
+  await editor.getByLabel('Shortcut 2 name').fill('Inbox');
+  await editor.getByLabel('Shortcut 2 page').fill('/inbox');
+  await editor.getByLabel('Shortcut 1 description').fill('Write something');
+  const preview = JSON.parse((await editor.locator('pre.json').innerText()).replace(/"data:[^"]*…"/g, '""'));
+  check(
+    'the editor’s title bar and shortcut controls update the manifest',
+    preview.display_override?.[0] === 'window-controls-overlay' &&
+      preview.shortcuts?.map((s) => s.name).join() === 'Compose,Inbox' &&
+      preview.shortcuts[0].description === 'Write something',
+    JSON.stringify({ display_override: preview.display_override, shortcuts: preview.shortcuts }),
+  );
+  // Typing scrolled the page, and full-page shots of a scrolled page repeat the sticky header.
+  await editor.evaluate(() => (document.activeElement?.blur(), scrollTo(0, 0)));
+  await editor.screenshot({ path: `${SHOTS}/editor-window-shortcuts.png`, fullPage: true });
+  await editor.setViewportSize({ width: 700, height: 1000 });
+  await editor.locator('section.settings-section', { has: editor.getByRole('heading', { name: 'Behaviour' }) }).screenshot({ path: `${SHOTS}/editor-narrow-shortcuts.png` });
+  await editor.setViewportSize({ width: 1280, height: 1000 });
+
+  // Saving opens the site, where Chrome reads the new manifest; saving again reuses that tab.
+  const siteTabs = () => ctx.pages().filter((p) => p.url() === 'http://localhost:8123/').length;
+  const savedTab = ctx.waitForEvent('page', { timeout: 5000 }).catch(() => undefined);
+  await editor.getByRole('button', { name: 'Save' }).click();
+  const openedSite = await savedTab;
+  await openedSite?.waitForLoadState();
+  const tabsAfterFirst = siteTabs();
+  await editor.getByLabel('Shortcut 2 page').fill('/inbox/');
+  await editor.getByRole('button', { name: 'Save' }).click();
+  await sleep(800);
+  check(
+    'Save opens the app’s start page, and saving again reuses that tab',
+    openedSite?.url() === 'http://localhost:8123/' && tabsAfterFirst === 1 && siteTabs() === 1 && (await editor.locator('main').innerText()).includes('open in a tab'),
+    `${openedSite?.url()}, ${tabsAfterFirst} then ${siteTabs()} tab(s)`,
+  );
 
   const onboarding = await ctx.newPage();
   await onboarding.setViewportSize({ width: 900, height: 900 });
@@ -229,6 +328,31 @@ try {
   };
   const configured = await popup('http://localhost:8123/t/1', 'popup-configured.png');
   check('the popup shows the manifest is active', (await configured.view.locator('main').innerText()).includes('manifest is active'), configured.errors.join('; '));
+  // captureVisibleTab needs a real toolbar click (activeTab), so it's stubbed
+  // with a capture wider than Chrome's install dialog accepts.
+  await configured.view.evaluate(() => {
+    chrome.tabs.captureVisibleTab = async () => {
+      const canvas = new OffscreenCanvas(3000, 900);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#123456';
+      ctx.fillRect(0, 0, 3000, 900);
+      const blob = await canvas.convertToBlob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    };
+  });
+  await configured.view.getByRole('button', { name: /^(re)?capture$/i }).click();
+  await sleep(800);
+  const [shot] = (await storageGet('site:http://localhost:8123'))?.screenshots ?? [];
+  const [shotWidth, shotHeight] = (shot?.sizes ?? '0x0').split('x').map(Number);
+  check(
+    'Capture saves a wide JPEG screenshot within Chrome’s size limits',
+    shot?.type === 'image/jpeg' && shot.form_factor === 'wide' && shotWidth === 1280 && shotWidth / shotHeight <= 2.3 && shot.src.startsWith('data:image/jpeg'),
+    `${shot?.sizes} ${shot?.type} ${shot?.form_factor}`,
+  );
 
   const fresh = await popup('http://localhost:8125/', 'popup-new.png');
   check('the popup offers to add a new site', (await fresh.view.locator('main').innerText()).includes('Add in Tabulous'), fresh.errors.join('; '));

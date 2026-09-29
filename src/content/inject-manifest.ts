@@ -2,6 +2,7 @@
 // site's <link rel="manifest"> with Tabulous's data: manifest and keeps it there.
 
 import type { TabulousMessage } from '../lib/messages';
+import { pageCss } from '../lib/page-css';
 import { getSite, siteKey } from '../lib/storage';
 import { buildManifest, manifestDataUrl, type SiteConfig } from '../lib/web-manifest';
 
@@ -74,6 +75,16 @@ function send(message: TabulousMessage): void {
   });
 }
 
+let insertedCss = '';
+
+/** Keeps the page's inserted CSS in step with the config. */
+function applyCss(site: SiteConfig | undefined): void {
+  const css = site?.enabled ? pageCss(site) : '';
+  if (css === insertedCss) return;
+  send({ type: 'set-css', css, previous: insertedCss });
+  insertedCss = css;
+}
+
 let reportingCsp = false;
 
 function reportCspViolations(): void {
@@ -103,6 +114,7 @@ function update(site: SiteConfig | undefined): void {
     watchForHead();
   }
   apply();
+  applyCss(site);
 }
 
 async function main(): Promise<void> {

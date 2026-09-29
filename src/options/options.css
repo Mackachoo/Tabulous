@@ -228,6 +228,38 @@ pre.json {
   max-height: 60vh;
 }
 
+.shortcut-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr 1.5fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.shortcut-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px dashed var(--outline-variant);
+  border-radius: var(--radius-field);
+  background: var(--container);
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+.shortcut-icon:hover {
+  background: var(--container-high);
+}
+.shortcut-icon img {
+  width: 24px;
+  height: 24px;
+}
+
+img.screenshot {
+  width: 240px;
+  border-radius: var(--radius-field);
+  border: 1px solid var(--outline-variant);
+}
+
 .empty {
   max-width: 680px;
   margin: 24px auto;
@@ -266,5 +298,15 @@ pre.json {
   }
   .form-grid {
     grid-template-columns: 1fr;
+  }
+  .shortcut-row {
+    grid-template-columns: 40px 1fr auto;
+  }
+  /* Name and remove on the first line, page and description below. */
+  .shortcut-row > .icon-only {
+    grid-area: 1 / 3;
+  }
+  .shortcut-row > input[type='text']:not([aria-label$=' name']) {
+    grid-column: 2 / -1;
   }
 }
