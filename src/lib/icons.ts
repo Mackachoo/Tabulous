@@ -142,11 +142,20 @@ export async function iconsFromCandidates(candidates: IconCandidate[], backgroun
   return { icons: [], failed };
 }
 
+export interface SiteRead {
+  candidates: IconCandidate[];
+  /** The site's own manifest and its URL, when it has one that could be read. */
+  manifest?: Record<string, unknown>;
+  manifestUrl?: string;
+}
+
 /**
- * Icon candidates from a page's HTML, for the editor, which has no tab to inspect.
+ * Icon candidates and the site's own manifest from a page's HTML, for the
+ * editor, which has no tab to inspect. Reads the HTML as served, so it finds the
+ * site's manifest even while Tabulous's has replaced it in open tabs.
  * Needs host permission for the site.
  */
-export async function candidatesFromSite(pageUrl: string): Promise<IconCandidate[]> {
+export async function readSite(pageUrl: string): Promise<SiteRead> {
   const res = await fetch(pageUrl, { credentials: 'include' });
   const base = res.url || pageUrl;
   const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
@@ -155,11 +164,13 @@ export async function candidatesFromSite(pageUrl: string): Promise<IconCandidate
     Math.max(0, ...(sizes ?? '').split(/\s+/).map((s) => parseInt(s, 10) || 0));
 
   const candidates: IconCandidate[] = [];
+  let manifest: Record<string, unknown> | undefined;
+  let manifestUrl: string | undefined;
   const manifestHref = doc.querySelector<HTMLLinkElement>('link[rel~="manifest"]')?.getAttribute('href');
   if (manifestHref) {
-    const manifestUrl = abs(manifestHref);
+    manifestUrl = abs(manifestHref);
     try {
-      const manifest = await (await fetch(manifestUrl, { credentials: 'include' })).json();
+      manifest = (await (await fetch(manifestUrl, { credentials: 'include' })).json()) as Record<string, unknown>;
       for (const icon of (manifest.icons ?? []) as { src?: string; sizes?: string; purpose?: string }[]) {
         if (icon.src) {
           candidates.push({ url: abs(icon.src, manifestUrl), size: maxSize(icon.sizes), purpose: icon.purpose, source: 'manifest' });
@@ -180,7 +191,7 @@ export async function candidatesFromSite(pageUrl: string): Promise<IconCandidate
     });
   }
   candidates.push({ url: abs('/favicon.ico'), size: 0, source: 'favicon' });
-  return candidates;
+  return { candidates, manifest, manifestUrl: manifest && manifestUrl };
 }
 
 export function largestIcon(icons: ManifestIcon[]): ManifestIcon | undefined {

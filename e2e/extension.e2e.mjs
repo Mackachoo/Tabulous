@@ -43,7 +43,17 @@ const serve = (port, headers = {}) =>
     .createServer((req, res) => {
       if (req.url.startsWith('/site.webmanifest')) {
         res.writeHead(200, { 'content-type': 'application/manifest+json', ...headers });
-        return res.end(JSON.stringify({ name: 'Site Own', start_url: '/t/1', display: 'standalone' }));
+        return res.end(
+          JSON.stringify({
+            name: 'Site Own',
+            start_url: '/t/1',
+            display: 'standalone',
+            // Features Tabulous should carry over, with URLs relative to the manifest.
+            shortcuts: [{ name: 'Compose', url: 'compose' }],
+            protocol_handlers: [{ protocol: 'web+tabulous', url: '/handle?u=%s' }],
+            prefer_related_applications: true,
+          }),
+        );
       }
       if (req.url === '/icon.png') {
         res.writeHead(200, { 'content-type': 'image/png' });
@@ -215,7 +225,7 @@ try {
     await view.emulateMedia({ colorScheme: 'dark' });
     await view.screenshot({ path: `${SHOTS}/${file.replace('.png', '-dark.png')}`, fullPage: true });
     await view.emulateMedia({ colorScheme: 'light' });
-    return { view, errors };
+    return { view, errors, target };
   };
   const configured = await popup('http://localhost:8123/t/1', 'popup-configured.png');
   check('the popup shows the manifest is active', (await configured.view.locator('main').innerText()).includes('manifest is active'), configured.errors.join('; '));
@@ -226,6 +236,22 @@ try {
   await sleep(2500);
   const created = await storageGet('site:http://localhost:8125');
   check('"Add in Tabulous" saves a config using the site’s name and icons', created?.name === 'Site Own' && created?.icons?.length === 3, `${created?.name}, ${created?.icons?.length} icons`);
+  check(
+    '"Add in Tabulous" keeps the site’s own shortcuts and link handlers, with absolute URLs',
+    created?.siteFields?.shortcuts?.[0]?.url === 'http://localhost:8125/compose' &&
+      created?.siteFields?.protocol_handlers?.[0]?.url === 'http://localhost:8125/handle?u=%s' &&
+      !('prefer_related_applications' in (created?.siteFields ?? {})),
+    JSON.stringify(created?.siteFields),
+  );
+  await sleep(500);
+  const kept = await (await ctx.newCDPSession(fresh.target)).send('Page.getAppManifest');
+  check(
+    'Chrome parses the carried-over shortcut and link handler',
+    kept.errors.length === 0 &&
+      kept.manifest?.shortcuts?.[0]?.url === 'http://localhost:8125/compose' &&
+      kept.manifest?.protocolHandlers?.[0]?.url === 'http://localhost:8125/handle?u=%s',
+    JSON.stringify({ errors: kept.errors, shortcuts: kept.manifest?.shortcuts, protocolHandlers: kept.manifest?.protocolHandlers }),
+  );
 
   // The popup turns into a short setup form until Done is clicked.
   await fresh.view.screenshot({ path: `${SHOTS}/popup-setup.png`, fullPage: true });
@@ -244,12 +270,12 @@ try {
   const afterDone = await fresh.view.locator('main').innerText();
   check('Done ends setup and shows the status view', done && !('needsSetup' in done) && afterDone.includes('manifest is active'), afterDone.slice(0, 80).replace(/\n+/g, ' | '));
   // "Edit settings" reopens the form in the popup; the gear opens the settings page.
-  await fresh.view.getByRole('button', { name: 'Edit settings' }).click();
+  await fresh.view.getByRole('button', { name: 'Edit', exact: true }).click();
   await sleep(300);
   await fresh.view.getByLabel('Name').fill('Edited Name');
   await sleep(600);
   const reedited = await storageGet('site:http://localhost:8125');
-  check('"Edit settings" edits the site in the popup', reedited?.name === 'Edited Name' && !('needsSetup' in reedited), reedited?.name);
+  check('"Edit" edits the site in the popup', reedited?.name === 'Edited Name' && !('needsSetup' in reedited), reedited?.name);
   await fresh.view.getByRole('button', { name: 'Done' }).click();
   await sleep(300);
   const settingsTab = ctx.waitForEvent('page');

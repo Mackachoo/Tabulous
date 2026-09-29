@@ -11,7 +11,7 @@ import {
   saveSite,
   type FlagState,
 } from '../lib/storage';
-import { checkUrl, defaultSiteConfig, validate, type ManifestIcon, type SiteConfig } from '../lib/web-manifest';
+import { checkUrl, defaultSiteConfig, siteManifestFields, validate, type ManifestIcon, type SiteConfig } from '../lib/web-manifest';
 import { presetFor } from '../presets';
 import { $, h, listRow, mount, notice, toggle, toggleRow } from '../ui/dom';
 import { icon } from '../ui/icons';
@@ -88,6 +88,10 @@ function newConfig(): SiteConfig {
   const name = cleanTitle(page?.title);
   if (name) detected.name = name;
   if (page?.themeColor) detected.themeColor = page.themeColor;
+  if (page?.siteManifest && page.siteManifestUrl) {
+    detected.siteFields = siteManifestFields(page.siteManifest, page.siteManifestUrl, state.origin);
+    detected.siteManifestUrl = page.siteManifestUrl;
+  }
   return defaultSiteConfig(state.origin, { ...detected, ...presetFor(state.origin) });
 }
 
