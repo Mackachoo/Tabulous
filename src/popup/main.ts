@@ -1,5 +1,5 @@
 import { fetchIconsInPage, inspectPage, type PageInfo } from '../lib/detect';
-import { blobToIcons, dockIcon, iconsFromCandidates, largestIcon, rankCandidates } from '../lib/icons';
+import { blobToIcons, captureToScreenshot, dockIcon, iconsFromCandidates, largestIcon, rankCandidates } from '../lib/icons';
 import { hasSitePermission, removeSitePermission, requestSitePermission } from '../lib/permissions';
 import {
   clearCspBlocked,
@@ -182,6 +182,19 @@ async function remove(): Promise<void> {
   state.cspBlocked = false;
   state.editing = false;
   render();
+}
+
+/** Captures the visible page (allowed by activeTab) as the install dialog's screenshot. */
+async function captureScreenshot(): Promise<void> {
+  try {
+    const capture = await chrome.tabs.captureVisibleTab(state.tab.windowId, { format: 'png' });
+    const screenshot = await captureToScreenshot(capture, cleanTitle(state.tab.title) ?? state.config?.name);
+    state.error = undefined;
+    await update({ screenshots: [screenshot] });
+  } catch (e) {
+    state.error = `Couldn’t capture the page: ${(e as Error).message}`;
+    render();
+  }
 }
 
 async function reloadTab(): Promise<void> {
@@ -530,6 +543,7 @@ function renderConfigured(config: SiteConfig): void {
       { class: 'popup-body' },
       ...pageStatus(config),
       ...problems.map((p) => notice(p.severity === 'error' ? 'error' : 'warn', p.message)),
+      state.error && notice('error', state.error),
       cspSection(config),
       h(
         'section',
@@ -537,6 +551,13 @@ function renderConfigured(config: SiteConfig): void {
         toggleRow('Tabbed app window', 'Open pages of the app as tabs in one window', config.tabbed, (tabbed) => update({ tabbed })),
         flagsRow(config),
         scopeTester(config),
+        listRow(
+          'Screenshot for installing',
+          config.screenshots?.length
+            ? 'Saved. Chrome shows it in the install dialog. Capture again to replace it.'
+            : 'Chrome shows a bigger install dialog when the app has a screenshot. Captures this page as it looks now.',
+          h('button', { class: 'btn', onclick: captureScreenshot }, config.screenshots?.length ? 'Recapture' : 'Capture'),
+        ),
         listRow(
           'Install',
           'Uninstall any app you already have for this site, then use Chrome menu ⋮ › Cast, save and share › Install page as app.',

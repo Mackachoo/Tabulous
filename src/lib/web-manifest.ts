@@ -4,12 +4,20 @@
 export type Display = 'fullscreen' | 'standalone' | 'minimal-ui' | 'browser';
 export type DisplayOverride = Display | 'tabbed' | 'window-controls-overlay';
 export type LaunchClientMode = 'auto' | 'focus-existing' | 'navigate-existing' | 'navigate-new';
+/** The `display` values the editor offers; `browser` wouldn't be an app. */
+export type WindowDisplay = 'standalone' | 'minimal-ui' | 'fullscreen';
 
 export interface ManifestIcon {
   src: string;
   sizes?: string;
   type?: string;
   purpose?: string;
+}
+
+/** A screenshot for Chrome's richer install dialog. */
+export interface ManifestImage extends ManifestIcon {
+  form_factor?: 'wide' | 'narrow';
+  label?: string;
 }
 
 /** A URLPatternInit as Chrome accepts it in `tab_strip.home_tab.scope_patterns`. */
@@ -40,13 +48,27 @@ export interface WebAppManifest {
   background_color?: string;
   icons: ManifestIcon[];
   launch_handler?: { client_mode: LaunchClientMode };
-  shortcuts?: { name: string; url: string }[];
+  shortcuts?: { name: string; url: string; description?: string; icons?: ManifestIcon[] }[];
+  protocol_handlers?: { protocol: string; url: string }[];
+  description?: string;
+  screenshots?: ManifestImage[];
   [extra: string]: unknown;
 }
 
 export interface Shortcut {
   name: string;
   /** Path on the site's origin, e.g. `/compose`. */
+  path: string;
+  description?: string;
+  /** 96px PNG data: URL. */
+  icon?: string;
+}
+
+/** Makes the app the handler for links like `mailto:`. */
+export interface ProtocolHandler {
+  /** e.g. `mailto` or `web+music` */
+  protocol: string;
+  /** Path on the site's origin with `%s` where the link goes, e.g. `/compose?to=%s`. */
   path: string;
 }
 
@@ -61,6 +83,16 @@ export interface SiteConfig {
   startPath: string;
   /** Everything under this path counts as "in the app" (no URL bar). */
   scopePath: string;
+  /** Window style when the app isn't tabbed. Configs saved before this setting existed count as `standalone`. */
+  display?: WindowDisplay;
+  /** Let the page draw into the title bar (window controls overlay). Only when not tabbed. */
+  titleBarOverlay?: boolean;
+  /** CSS selector for the part of the page the window is dragged by, with the title bar overlay. */
+  dragSelector?: string;
+  /** Shown in Chrome's install dialog. */
+  description?: string;
+  /** At most one, captured from the popup, for Chrome's install dialog. */
+  screenshots?: ManifestImage[];
   themeColor?: string;
   backgroundColor?: string;
   /** Icons with data: URL sources, so they work from a data: manifest. */
@@ -72,6 +104,7 @@ export interface SiteConfig {
   newTabPath?: string;
   launchMode: LaunchClientMode;
   shortcuts: Shortcut[];
+  protocolHandlers?: ProtocolHandler[];
   /** Remove the site's CSP header so the data: manifest isn't blocked. */
   cspBypass: boolean;
   /** Members carried over from the site's own manifest (see `siteManifestFields`), URLs made absolute. */
@@ -94,12 +127,14 @@ export function defaultSiteConfig(origin: string, partial: Partial<SiteConfig> =
     name: new URL(origin).hostname.replace(/^www\./, ''),
     startPath: '/',
     scopePath: '/',
+    display: 'standalone',
     icons: [],
     tabbed: true,
     homeTabPaths: [],
     newTabPath: undefined,
     launchMode: 'auto',
     shortcuts: [],
+    protocolHandlers: [],
     cspBypass: false,
     keepSiteFields: true,
     overrides: {},
@@ -159,21 +194,27 @@ export function buildManifest(config: SiteConfig): WebAppManifest {
   const { origin } = config;
   const scope = absoluteUrl(origin, normaliseScopePath(config.scopePath));
 
+  const display = config.display ?? 'standalone';
+  // Chrome takes the first mode it supports, then `display`. Without the tab
+  // strip flags it skips `tabbed`. It can't show tabs and the overlay together.
+  const preferred: DisplayOverride[] = config.tabbed ? ['tabbed'] : config.titleBarOverlay ? ['window-controls-overlay'] : [];
+
   const manifest: WebAppManifest = {
     id: appId(origin),
     name: config.name,
     start_url: absoluteUrl(origin, config.startPath),
     scope,
-    display: 'standalone',
-    // Without the tab strip flags Chrome skips `tabbed` and uses `standalone`.
-    display_override: config.tabbed ? ['tabbed', 'standalone'] : ['standalone'],
+    display,
+    display_override: [...preferred, display],
     icons: config.icons,
   };
 
   if (config.shortName) manifest.short_name = config.shortName;
+  if (config.description?.trim()) manifest.description = config.description.trim();
   if (config.themeColor) manifest.theme_color = config.themeColor;
   if (config.backgroundColor) manifest.background_color = config.backgroundColor;
   if (config.launchMode !== 'auto') manifest.launch_handler = { client_mode: config.launchMode };
+  if (config.screenshots?.length) manifest.screenshots = config.screenshots;
 
   if (config.tabbed) {
     const tabStrip: TabStrip = {};
@@ -189,10 +230,38 @@ export function buildManifest(config: SiteConfig): WebAppManifest {
 
   const shortcuts = config.shortcuts.filter((s) => s.name.trim() && s.path.trim());
   if (shortcuts.length) {
-    manifest.shortcuts = shortcuts.map((s) => ({ name: s.name, url: absoluteUrl(origin, s.path) }));
+    manifest.shortcuts = shortcuts.map((s) => ({
+      name: s.name,
+      url: absoluteUrl(origin, s.path),
+      ...(s.description?.trim() && { description: s.description.trim() }),
+      ...(s.icon && { icons: [{ src: s.icon, sizes: '96x96', type: 'image/png' }] }),
+    }));
+  }
+
+  // The user's handlers replace the site's own for the same scheme.
+  const handlers = protocolHandlers(config).map((p) => ({ protocol: p.protocol, url: absoluteUrl(origin, p.path) }));
+  if (handlers.length) {
+    const fromSite = objects(inheritedFields(config).protocol_handlers).filter((p) => !handlers.some((h) => h.protocol === p.protocol));
+    manifest.protocol_handlers = [...(fromSite as { protocol: string; url: string }[]), ...handlers];
   }
 
   return { ...inheritedFields(config), ...manifest, ...config.overrides };
+}
+
+function protocolHandlers(config: SiteConfig): ProtocolHandler[] {
+  return (config.protocolHandlers ?? [])
+    .map((p) => ({ protocol: p.protocol.trim().toLowerCase(), path: p.path.trim() }))
+    .filter((p) => p.protocol && p.path);
+}
+
+// Schemes a web app may handle without the `web+` prefix.
+// https://html.spec.whatwg.org/multipage/system-state.html#safelisted-scheme
+const SAFELISTED_SCHEMES = new Set(
+  'bitcoin cabal dat did doi dweb ethereum ftp ftps geo im ipfs ipns irc ircs magnet mailto matrix mms news nntp openpgp4fpr sftp sip sms smsto ssb ssh tel urn webcal wtai xmpp'.split(' '),
+);
+
+export function isHandledScheme(protocol: string): boolean {
+  return SAFELISTED_SCHEMES.has(protocol) || /^web\+[a-z]+$/.test(protocol);
 }
 
 function inheritedFields(config: SiteConfig): Record<string, unknown> {
@@ -346,6 +415,25 @@ export function validate(config: SiteConfig): Problem[] {
     } catch {
       err(`Home tab pattern "${p}" is not a valid URL pattern.`);
     }
+  }
+
+  for (const handler of protocolHandlers(config)) {
+    const label = `Link handler for ${handler.protocol}:`;
+    if (!isHandledScheme(handler.protocol)) {
+      err(`${label} Chrome only lets apps handle standard schemes like mailto or webcal, or custom ones starting web+.`);
+    }
+    if (!handler.path.includes('%s')) err(`${label} the page needs %s where the link goes, e.g. /compose?to=%s.`);
+    try {
+      if (!checkUrl(config, absoluteUrl(config.origin, handler.path)).inScope) {
+        warn(`${label} the page is outside the in-app path, so Chrome will ignore it.`);
+      }
+    } catch (e) {
+      err(`${label} ${(e as Error).message}`);
+    }
+  }
+
+  if (config.titleBarOverlay && !config.tabbed && !config.dragSelector?.trim()) {
+    warn('With the page in the title bar and no drag area, the window can only be moved after switching the title bar back.');
   }
 
   // Chrome ignores these when they point outside the scope.

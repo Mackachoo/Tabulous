@@ -1,5 +1,5 @@
 import { TAB_STRIP_FLAGS } from '../lib/flags';
-import { blobToIcons, iconsFromCandidates, largestIcon, readSite } from '../lib/icons';
+import { blobToIcons, blobToShortcutIcon, iconsFromCandidates, largestIcon, readSite } from '../lib/icons';
 import { hasSitePermission, removeSitePermission, requestSitePermission } from '../lib/permissions';
 import { deleteSite, getAllSites, isSiteKey, saveSite } from '../lib/storage';
 import {
@@ -12,7 +12,9 @@ import {
   toOrigin,
   validate,
   type LaunchClientMode,
+  type Shortcut,
   type SiteConfig,
+  type WindowDisplay,
 } from '../lib/web-manifest';
 import { presetFor } from '../presets';
 import { $, h, listRow, mount, notice, toggleRow, type Child } from '../ui/dom';
@@ -104,8 +106,34 @@ async function save(): Promise<void> {
   await saveSite(config);
   state.dirty = false;
   await loadSites();
-  state.message = { tone: 'ok', text: 'Saved. Open pages of this site update straight away.' };
+  const opened = config.enabled && state.permitted[config.origin] && (await openSite(config));
+  state.message = {
+    tone: 'ok',
+    text: opened
+      ? 'Saved, and the site is open in a tab. To update an installed app, open it from there (Open in app in the address bar).'
+      : 'Saved. Open pages of this site update straight away.',
+  };
   render();
+}
+
+/** The tab the last save opened, reused so saving again doesn't pile up tabs. */
+let siteTabId: number | undefined;
+
+/**
+ * Opens the app's start page after a save. Chrome reads the new manifest
+ * there, and opening the installed app from that tab updates it.
+ */
+async function openSite(config: SiteConfig): Promise<boolean> {
+  try {
+    const url = absoluteUrl(config.origin, config.startPath);
+    const reused = siteTabId !== undefined && (await chrome.tabs.update(siteTabId, { url, active: true }).catch(() => undefined));
+    const tab = reused || (await chrome.tabs.create({ url }));
+    siteTabId = tab.id;
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function remove(): Promise<void> {
@@ -186,7 +214,7 @@ async function importSites(file: File): Promise<void> {
 
 // ---- fields ----------------------------------------------------------------
 
-type StringKey = 'name' | 'shortName' | 'startPath' | 'scopePath' | 'newTabPath';
+type StringKey = 'name' | 'shortName' | 'startPath' | 'scopePath' | 'newTabPath' | 'description' | 'dragSelector';
 
 function textField(label: string, key: StringKey, hint?: string, placeholder?: string): HTMLElement {
   return h(
@@ -244,6 +272,73 @@ function siteIcon(site: SiteConfig, size = 32): HTMLElement {
   return best
     ? h('img', { class: 'site-icon', src: best.src, alt: '', style: `width:${size}px;height:${size}px` })
     : h('span', { class: 'site-icon', style: `width:${size}px;height:${size}px` }, icon('apps', size * 0.6));
+}
+
+// Reads the live draft, since earlier edits replace it after this form renders.
+function setShortcuts(update: (shortcuts: Shortcut[]) => Shortcut[], rerender = false): void {
+  if (!state.draft) return;
+  change({ shortcuts: update([...state.draft.shortcuts]) });
+  if (rerender) render();
+}
+
+function shortcutRow(shortcut: Shortcut, i: number): HTMLElement {
+  const edit = (patch: Partial<Shortcut>) => setShortcuts((all) => all.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const iconInput = h('input', {
+    type: 'file',
+    accept: 'image/*',
+    hidden: true,
+    onchange: async () => {
+      const file = iconInput.files?.[0];
+      if (!file) return;
+      try {
+        const icon = await blobToShortcutIcon(file);
+        setShortcuts((all) => all.map((s, j) => (j === i ? { ...s, icon } : s)), true);
+      } catch {
+        say('error', 'That file couldn’t be read as an image.');
+      }
+    },
+  });
+  const input = (key: 'name' | 'path' | 'description', label: string, placeholder: string) =>
+    h('input', {
+      type: 'text',
+      value: shortcut[key] ?? '',
+      placeholder,
+      'aria-label': `Shortcut ${i + 1} ${label}`,
+      oninput: (e: Event) => edit({ [key]: (e.target as HTMLInputElement).value }),
+    });
+  return h(
+    'div',
+    { class: 'shortcut-row' },
+    h(
+      'button',
+      { class: 'shortcut-icon', title: 'Choose an icon', 'aria-label': `Shortcut ${i + 1} icon`, onclick: () => iconInput.click() },
+      shortcut.icon ? h('img', { src: shortcut.icon, alt: '' }) : icon('upload', 18),
+    ),
+    iconInput,
+    input('name', 'name', 'New message'),
+    input('path', 'page', '/new'),
+    input('description', 'description', 'Description (optional)'),
+    h(
+      'button',
+      { class: 'btn text icon-only', title: 'Remove shortcut', 'aria-label': `Remove shortcut ${i + 1}`, onclick: () => setShortcuts((all) => all.filter((_, j) => j !== i), true) },
+      icon('delete', 18),
+    ),
+  );
+}
+
+function shortcutsField(draft: SiteConfig): HTMLElement {
+  return h(
+    'div',
+    { class: 'field' },
+    h('span', null, 'Shortcuts'),
+    ...draft.shortcuts.map(shortcutRow),
+    h(
+      'div',
+      { class: 'row' },
+      h('button', { class: 'btn', onclick: () => setShortcuts((all) => [...all, { name: '', path: '' }], true) }, icon('add', 18), 'Add shortcut'),
+    ),
+    h('span', { class: 'hint' }, 'Shown when you right-click the app icon. They replace the site’s own shortcuts.'),
+  );
 }
 
 // ---- rendering -------------------------------------------------------------
@@ -360,7 +455,7 @@ function editor(draft: SiteConfig): HTMLElement {
     ),
 
     section(
-      'Tabbed window',
+      'Window',
       toggleRow('Tabbed app window', 'Show a tab strip so several pages of the app can be open in one window', draft.tabbed, (tabbed) => {
         change({ tabbed });
         render();
@@ -384,6 +479,40 @@ function editor(draft: SiteConfig): HTMLElement {
           ['The tab strip only appears when ', ...TAB_STRIP_FLAGS.filter((f) => f.required).flatMap((f, i) => [i ? ' and ' : '', h('code', null, f.id)]), ' are on.'],
           h('button', { class: 'btn', onclick: () => chrome.tabs.create({ url: ONBOARDING_URL }) }, icon('flag', 18), 'Set up flags'),
         ),
+      !draft.tabbed &&
+        toggleRow(
+          'Put the page in the title bar',
+          'The page’s own header fills the title bar, next to the window buttons, like a desktop app. Chrome adds a button there to switch back.',
+          Boolean(draft.titleBarOverlay),
+          (titleBarOverlay) => {
+            change({ titleBarOverlay });
+            render();
+          },
+        ),
+      h(
+        'div',
+        { class: 'card-body stack' },
+        !draft.tabbed &&
+          draft.titleBarOverlay &&
+          textField('Drag area', 'dragSelector', 'CSS selector for the page’s header, which you drag to move the window. Its links and buttons still work.', 'header, #masthead'),
+        h(
+          'label',
+          { class: 'field' },
+          h('span', null, 'Window style'),
+          h(
+            'select',
+            { onchange: (e: Event) => change({ display: (e.target as HTMLSelectElement).value as WindowDisplay }) },
+            ...(
+              [
+                ['standalone', 'Standard app window'],
+                ['minimal-ui', 'With back and reload buttons'],
+                ['fullscreen', 'Fullscreen'],
+              ] as const
+            ).map(([value, label]) => h('option', { value, selected: (draft.display ?? 'standalone') === value }, label)),
+          ),
+          draft.tabbed && h('span', { class: 'hint' }, 'Used when the tab strip isn’t available.'),
+        ),
+      ),
     ),
 
     section(
@@ -408,18 +537,52 @@ function editor(draft: SiteConfig): HTMLElement {
             ).map(([value, label]) => h('option', { value, selected: draft.launchMode === value }, label)),
           ),
         ),
+        shortcutsField(draft),
         linesField(
-          'Shortcuts',
-          draft.shortcuts.map((s) => `${s.name} | ${s.path}`),
-          'Shown when you right-click the app icon. One per line: Name | /path',
-          'New message | /new',
+          'Link handlers',
+          (draft.protocolHandlers ?? []).map((p) => `${p.protocol} | ${p.path}`),
+          'Open links like mailto: in the app. One per line: scheme | /page?with=%s. Chrome asks the first time.',
+          'mailto | /compose?to=%s',
           (lines) =>
             change({
-              shortcuts: lines.map((line) => {
-                const [name, path = ''] = line.split('|').map((part) => part.trim());
-                return { name, path };
+              protocolHandlers: lines.map((line) => {
+                const [protocol, path = ''] = line.split('|').map((part) => part.trim());
+                return { protocol, path };
               }),
             }),
+        ),
+      ),
+    ),
+
+    section(
+      'Install dialog',
+      h(
+        'div',
+        { class: 'card-body stack' },
+        textField('Description', 'description', 'Chrome shows it when you install the app, with the screenshot.'),
+        h(
+          'div',
+          { class: 'field' },
+          h('span', null, 'Screenshot'),
+          draft.screenshots?.length
+            ? h(
+                'div',
+                { class: 'row' },
+                h('img', { class: 'screenshot', src: draft.screenshots[0].src, alt: 'Screenshot for the install dialog' }),
+                h(
+                  'button',
+                  {
+                    class: 'btn',
+                    onclick: () => {
+                      change({ screenshots: [] });
+                      render();
+                    },
+                  },
+                  icon('delete', 18),
+                  'Remove',
+                ),
+              )
+            : h('span', { class: 'hint' }, 'None yet. Open the site, click the Tabulous icon and choose Capture.'),
         ),
       ),
     ),

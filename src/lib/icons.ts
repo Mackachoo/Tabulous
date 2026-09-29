@@ -5,7 +5,7 @@
 
 import type { IconCandidate } from './detect';
 import { analyseIcon, maskablePlacement, type IconLayout } from './icon-layout';
-import type { ManifestIcon } from './web-manifest';
+import type { ManifestIcon, ManifestImage } from './web-manifest';
 
 const OUTPUT_SIZES = [192, 512];
 
@@ -103,6 +103,40 @@ export async function blobToIcons(blob: Blob, background = '#ffffff'): Promise<M
     purpose: 'maskable',
   });
   return icons;
+}
+
+/** A 96px PNG for a shortcut in the Dock or taskbar menu. */
+export async function blobToShortcutIcon(blob: Blob): Promise<string> {
+  return render(await loadImage(blob), 96);
+}
+
+const SCREENSHOT_WIDTH = 1280;
+// Chrome's install dialog skips screenshots with one side more than 2.3 times the other.
+const SCREENSHOT_MAX_RATIO = 2.3;
+
+/**
+ * Turns a tab capture into a `wide` screenshot for Chrome's install dialog:
+ * cropped from the top left to landscape within Chrome's aspect ratio limit,
+ * scaled to 1280px wide at most, and saved as JPEG to keep the manifest small.
+ */
+export async function captureToScreenshot(capture: string, label?: string): Promise<ManifestImage> {
+  const img = await loadImage(await (await fetch(capture)).blob());
+  const width = Math.min(img.naturalWidth, Math.floor(img.naturalHeight * SCREENSHOT_MAX_RATIO));
+  const height = Math.min(img.naturalHeight, width);
+  const scale = Math.min(1, SCREENSHOT_WIDTH / width);
+  const el = document.createElement('canvas');
+  el.width = Math.round(width * scale);
+  el.height = Math.round(height * scale);
+  const ctx = el.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, width, height, 0, 0, el.width, el.height);
+  return {
+    src: el.toDataURL('image/jpeg', 0.7),
+    sizes: `${el.width}x${el.height}`,
+    type: 'image/jpeg',
+    form_factor: 'wide',
+    ...(label && { label }),
+  };
 }
 
 export interface IconResult {
