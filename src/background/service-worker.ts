@@ -18,26 +18,47 @@ import {
 const SCRIPT_ID = 'tabulous-inject';
 const WARN_COLOR = '#d93025';
 
+const sameItems = (a: readonly string[] = [], b: readonly string[] = []) =>
+  a.length === b.length && a.every((x) => b.includes(x));
+
+/**
+ * Leaves the registration alone when it already matches, and otherwise updates
+ * it in place. Unregistering and registering again would leave a gap in which
+ * pages load without the script, and syncs run on every settings edit and at
+ * startup, while Chrome is restoring tabs and app windows.
+ */
 async function syncContentScripts(): Promise<void> {
   const sites = (await getAllSites()).filter((s) => s.enabled);
   const permitted = await Promise.all(sites.map((s) => hasSitePermission(s.origin)));
   const matches = [...new Set(sites.filter((_, i) => permitted[i]).map((s) => originPattern(s.origin)))];
 
-  const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] });
-  if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] });
-  if (!matches.length) return;
-  await chrome.scripting.registerContentScripts([
-    { id: SCRIPT_ID, js: [injectScript], matches, runAt: 'document_start', persistAcrossSessions: true },
-  ]);
+  const [current] = await chrome.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] });
+  if (!matches.length) {
+    if (current) await chrome.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] });
+    return;
+  }
+  const script: chrome.scripting.RegisteredContentScript = {
+    id: SCRIPT_ID,
+    js: [injectScript],
+    matches,
+    runAt: 'document_start',
+    persistAcrossSessions: true,
+  };
+  if (!current) await chrome.scripting.registerContentScripts([script]);
+  else if (!sameItems(current.matches, matches) || !sameItems(current.js, script.js)) {
+    await chrome.scripting.updateContentScripts([script]);
+  }
 }
 
 /** One rule per opted-in site, removing its CSP header so the data: manifest can load. */
 async function syncCspRules(): Promise<void> {
   const sites = (await getAllSites()).filter((s) => s.enabled && s.cspBypass);
   const existing = await chrome.declarativeNetRequest.getDynamicRules();
+  const filters = sites.map((site) => `|${site.origin}/`);
+  if (sameItems(existing.map((r) => r.condition.urlFilter ?? ''), filters)) return;
   await chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: existing.map((r) => r.id),
-    addRules: sites.map((site, i) => ({
+    addRules: filters.map((urlFilter, i) => ({
       id: i + 1,
       priority: 1,
       action: {
@@ -50,7 +71,7 @@ async function syncCspRules(): Promise<void> {
         ],
       },
       condition: {
-        urlFilter: `|${site.origin}/`,
+        urlFilter,
         resourceTypes: ['main_frame' as chrome.declarativeNetRequest.ResourceType],
       },
     })),
@@ -102,6 +123,9 @@ chrome.runtime.onInstalled.addListener(async ({ reason }) => {
   }
 });
 chrome.runtime.onStartup.addListener(sync);
+// Also check whenever the worker wakes. Syncs that change nothing are cheap and
+// leave registrations alone, and this repairs any registration Chrome dropped.
+sync();
 chrome.permissions.onRemoved.addListener(sync);
 // The popup saves a site before asking for access, because on macOS the access
 // prompt can close the popup. So the rest of the setup happens here.

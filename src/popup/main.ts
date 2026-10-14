@@ -34,6 +34,8 @@ interface State {
 }
 
 let state: State;
+/** Settles once `state.iconOptions` has been filled from the page (or failed to be). */
+let iconOptionsReady: Promise<void> = Promise.resolve();
 const root = $('#app');
 
 const EDITOR_URL = chrome.runtime.getURL('src/options/index.html');
@@ -142,7 +144,7 @@ function addSite(): void {
 
 async function finishAddSite(config: SiteConfig, saved: Promise<void>, granted: Promise<boolean>): Promise<void> {
   await saved;
-  if (!(await granted)) {
+  if (!(await granted.catch(() => false))) {
     await deleteSite(state.origin);
     state.busy = undefined;
     state.error = 'Tabulous needs access to this site to replace its manifest.';
@@ -151,10 +153,13 @@ async function finishAddSite(config: SiteConfig, saved: Promise<void>, granted: 
   state.config = config;
   state.permitted = true;
 
+  // "Add" can be clicked before the page's icons are ready. Without an icon
+  // Chrome won't install the app, so wait for them rather than saving none.
   if (!config.icons.length && state.page) {
     state.busy = 'Preparing icons…';
     render();
-    const { icons } = await iconsFromCandidates(state.page.icons);
+    await iconOptionsReady;
+    const icons = state.iconOptions[0] ?? (await iconsFromCandidates(state.page.icons)).icons;
     if (icons.length) await update({ icons });
   }
   if (state.page?.cspBlocksManifest) {
@@ -600,9 +605,18 @@ async function init(): Promise<void> {
   render();
 
   if ((!config || config.needsSetup) && page && tab.id !== undefined) {
-    state.iconOptions = await prepareIcons(tab.id, page);
+    const tabId = tab.id;
+    iconOptionsReady = prepareIcons(tabId, page).then((options) => {
+      state.iconOptions = options;
+    });
+    await iconOptionsReady;
+    // The popup can close during setup (see addSite) before icons were chosen.
+    if (state.config?.needsSetup && !state.config.icons.length && state.iconOptions.length) {
+      state.config = { ...state.config, icons: state.iconOptions[0] };
+      await saveSite(state.config);
+    }
     // Re-render for the icon choices, unless it would interrupt typing.
-    if (!state.config || !document.activeElement?.matches('input, textarea')) render();
+    if (!state.busy && (!state.config || !document.activeElement?.matches('input, textarea'))) render();
   }
 }
 
